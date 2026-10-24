@@ -600,7 +600,17 @@ function hornSnd(){if(!AC)return;const t=AC.currentTime;[349,440].forEach(f=>{co
 
 /* ---------- アナウンス（にほんご → えいご の じゅん） ---------- */
 let enVoice=null,jaVoice=null;
-function pickVoices(){try{const vs=speechSynthesis.getVoices();jaVoice=vs.find(x=>/^ja/i.test(x.lang))||null;enVoice=vs.find(x=>/^en[-_]US/i.test(x.lang))||vs.find(x=>/^en/i.test(x.lang))||null;}catch(e){}}
+/* Mac の Chrome は さいしょに「Albert」（かすれた こえ）や おもしろ こえが ならぶので、ふつうの こえを えらぶ */
+const ODD_VOICE=/^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Kathy|Ralph|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley)\b/i;
+const GOOD_JA=['Kyoko','O-ren','Otoya','Hattori','Google 日本語','Microsoft Nanami','Microsoft Ayumi','Microsoft Haruka'];
+const GOOD_EN=['Samantha','Ava','Allison','Alex','Susan','Zoe','Evan','Nathan','Tom','Google US English','Microsoft Aria','Microsoft Jenny','Microsoft Guy','Microsoft Zira'];
+function bestVoice(vs,lang,good){
+  const score=x=>{if(ODD_VOICE.test(x.name))return -1;const i=good.findIndex(g=>x.name.startsWith(g));
+    return (i<0?0:100-i)+(lang.test(x.lang)?10:0)+(/Enhanced|Premium|拡張|プレミアム/.test(x.name)?5:0)+(x.localService?1:0);};
+  let best=null,bs=-1;for(const x of vs){const sc=score(x);if(sc>bs){best=x;bs=sc;}}return best;}
+function pickVoices(){try{const vs=speechSynthesis.getVoices();
+  jaVoice=bestVoice(vs.filter(x=>/^ja/i.test(x.lang)),/^ja[-_]JP/i,GOOD_JA);
+  enVoice=bestVoice(vs.filter(x=>/^en/i.test(x.lang)),/^en[-_]US/i,GOOD_EN);}catch(e){}}
 if('speechSynthesis' in window){pickVoices();try{speechSynthesis.onvoiceschanged=pickVoices;}catch(e){}}
 function announce(ja,en,delay,cut){
   if(!soundOn||!('speechSynthesis' in window))return;
