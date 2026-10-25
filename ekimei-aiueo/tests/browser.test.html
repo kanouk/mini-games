@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>えきめい あいうえお：ブラウザテスト</title>
+<style>body{font:16px system-ui;margin:20px;background:#edf5ff;color:#14213d}button{min-height:72px;padding:16px;font:inherit}#result{white-space:pre-wrap}iframe{display:block;border:2px solid #14213d;max-width:none;margin-top:20px}#result.failed{color:#a21424}</style>
+<h1>えきめい あいうえお：ブラウザテスト</h1>
+<p>本番HTMLを隔離したテスト用保存キーで実行します。画面遷移のタイマーを短縮し、実際のSVGパスに沿ったPointerEventで全82マスを確認します。</p>
+<button id="run">テストを実行</button>
+<pre id="result" role="status">待機中</pre>
+<div id="frames"></div>
+<script>
+const output=document.getElementById('result'),frames=document.getElementById('frames');
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const assert=(condition,message)=>{if(!condition)throw new Error(message);};
+async function until(check,message){for(let i=0;i<100;i++){if(check())return;await pause(15);}throw new Error('Timed out: '+message);}
+let completed=0;
+function pass(message){completed++;output.textContent+='\n✓ '+message;}
+document.getElementById('run').onclick=async()=>{
+  document.getElementById('run').disabled=true;output.className='';output.textContent='実行中';completed=0;
+  const storageKey='ekimei-aiueo-browser-test-'+Date.now();let frame;
+  try{
+    const original=await(await fetch('../ekimei.html')).text();
+    const strokes=await(await fetch('../data/strokes-hiragana.json')).json();
+    const timerPrelude='<script>const nativeTimeout=window.setTimeout;window.setTimeout=(fn,ms,...args)=>nativeTimeout(fn,ms>=100?ms*.02:ms,...args);<\/script>';
+    const source=original.replace("const STORAGE_KEY='ekimei-aiueo';",'const STORAGE_KEY='+JSON.stringify(storageKey)+';').replace('<script>',timerPrelude+'<script>');
+    const load=async(width=400,prelude='')=>{
+      frame?.remove();frame=document.createElement('iframe');frame.title='テスト中のアプリ';frame.style.width=width+'px';frame.style.height='844px';frames.append(frame);
+      const loaded=new Promise(resolve=>frame.onload=resolve);frame.srcdoc=source.replace('<head>','<head>'+prelude);await loaded;
+      await until(()=>frame.contentDocument.querySelector('#startBtn'),'app initialization');assert(frame.contentWindow.innerWidth===width,'Exact test viewport '+width);return frame.contentDocument;
+    };
+    let doc=await load();
+    const q=selector=>doc.querySelector(selector);
+    const click=selector=>{const e=q(selector);assert(e,'Missing button '+selector);e.click();};
+    const isPage=id=>!q('#'+id).hidden;
+    const state=()=>JSON.parse(localStorage.getItem(storageKey)||'{}');
+    const settings=()=>{click('#gear');};
+    const option=(name,value)=>click(`[data-k="${name}"] [data-v="${value}"]`);
+    const beginSheet=id=>{click('#startBtn');click(`.tile[data-id="${id}"]`);};
+    const stroke=(d,variant='forward')=>{
+      const win=frame.contentWindow,pad=q('#pad'),r=q('#padSvg').getBoundingClientRect(),path=doc.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',d);
+      const length=path.getTotalLength(),points=Array.from({length:49},(_,i)=>path.getPointAtLength(length*i/48));
+      if(variant==='reverse')points.reverse();
+      if(variant==='wrong')for(const point of points){point.x=2;point.y=2;}
+      const event=(type,p,primary=true)=>pad.dispatchEvent(new win.PointerEvent(type,{pointerId:1,pointerType:'touch',isPrimary:primary,button:0,buttons:type==='pointerup'?0:1,bubbles:true,clientX:r.left+p.x/109*r.width,clientY:r.top+p.y/109*r.height}));
+      event('pointerdown',points[0]);for(const p of points.slice(1))event('pointermove',p);event('pointerup',points.at(-1));
+    };
+    const finishWord=async(word)=>{
+      for(const ch of word){
+        for(const d of strokes[ch])stroke(d);
+        await until(()=>isPage('done')||!q('#demoBtn').disabled,'next character or completion');
+      }
+      assert(isPage('done'),'Completion screen for '+word);
+      assert(q('#sticker').textContent===word,'Correct sticker for '+word);
+    };
+    settings();option('voice','off');option('autodemo','off');option('aid','full');
+    const smallButtons=[...doc.querySelectorAll('#settings button')].filter(b=>{const r=b.getBoundingClientRect();return r.width>0&&(r.width<72||r.height<72);});
+    assert(smallButtons.length===0,'Settings tap targets >=72px');
+    assert(doc.documentElement.scrollWidth<=400,'Settings has no horizontal overflow');
+    pass('400px：設定の全ボタンが72px以上、横はみ出しなし');
+    click('#settings .back');beginSheet('hira');click('.cell[data-w="あ"]');
+    const firstPath=strokes['あ'][0];
+    stroke(firstPath,'wrong');stroke(firstPath,'wrong');
+    await until(()=>q('#padSvg path.user[opacity]'),'automatic demonstration after two misses');
+    assert(isPage('trace'),'No error screen after misses');
+    assert(!q('#trace').textContent.includes('×'),'No cross mark');
+    pass('2回迷うと自動お手本。失敗メッセージなし');
+    await finishWord('あ');assert(state().completed===1,'One completed kana');
+    pass('お手本の途中からなぞり始め、完成まで進める');
+    click('#nextBtn');click('.cell[data-w="へ"]');
+    const before=state().completed;stroke(strokes['へ'][0]);
+    click('#trace .back');await pause(70);
+    assert(isPage('sheet')&&state().completed===before,'Back cancels pending completion');
+    pass('完成待ち中の「もどる」で隠れた完成・加算が起きない');
+    click('.cell[data-w="あ"]');
+    const win=frame.contentWindow,r=q('#padSvg').getBoundingClientRect(),pad=q('#pad');
+    pad.dispatchEvent(new win.PointerEvent('pointerdown',{pointerId:2,isPrimary:false,button:0,bubbles:true,clientX:r.left+80,clientY:r.top+80}));
+    assert(q('#padSvg .user').getAttribute('d')==='','Secondary pointer is ignored');
+    pad.dispatchEvent(new win.PointerEvent('pointerdown',{pointerId:1,isPrimary:true,button:0,bubbles:true,clientX:r.left+80,clientY:r.top+80}));
+    pad.dispatchEvent(new win.PointerEvent('pointercancel',{pointerId:1,isPrimary:true,bubbles:true}));
+    assert(q('#padSvg .user').getAttribute('d')==='','Canceled trace is cleared');
+    pass('2本目の指を無視し、pointercancelで軌跡を消す');
+    click('#trace .back');click('#sheet .back');click('#home .back');
+    for(const width of [400,1024]){
+      doc=await load(width);
+      beginSheet('names');
+      const sheets=['names','tokaido','hira'];
+      for(const sheet of sheets){
+        if(sheet!=='names'){click('#sheet .back');click(`.tile[data-id="${sheet}"]`);}
+        const words=[...doc.querySelectorAll('.cell')].map(b=>b.dataset.w);
+        for(const word of words){click(`.cell[data-w="${word}"]`);await finishWord(word);click('#nextBtn');}
+        pass(width+'px：'+sheet+' の全'+words.length+'マスをなぞって完成');
+      }
+      click('#sheet .back');click('#home .back');
+      assert(doc.documentElement.scrollWidth<=width,width+'px horizontal overflow');
+    }
+    const savedCompleted=state().completed;
+    doc=await load();settings();
+    assert(q('#stat').textContent.includes(savedCompleted+'回'),'Record survives reload');
+    option('tol','wide');option('aid','auto');option('autodemo','on');
+    click('#settings .back');doc=await load();settings();
+    for(const [name,value]of [['tol','wide'],['aid','auto'],['autodemo','on'],['voice','off']])assert(q(`[data-k="${name}"] [data-v="${value}"]`).getAttribute('aria-pressed')==='true','Persisted setting '+name);
+    pass('再読み込み後も記録と4設定が残る');
+    click('#settings .back');
+    for(const [practice,selector]of [[5,'.dots'],[10,'.ghost'],[20,null]]){
+      const s=state();s.counts['hira:あ']=practice;s.aid='auto';s.autodemo='off';localStorage.setItem(storageKey,JSON.stringify(s));doc=await load();beginSheet('hira');click('.cell[data-w="あ"]');
+      if(selector)assert(q('#padSvg '+selector),'Aid level '+practice);else assert(!q('#padSvg .rail')&&!q('#padSvg .dots')&&!q('#padSvg .ghost'),'Blank mode');
+      if(practice===10)assert(!q('#padSvg .start')&&!q('#padSvg .num'),'Shadow has no start or number');
+      await finishWord('あ');click('#nextBtn');
+      pass(practice+'回：補助が変わり、同じ筆順で完成できる');
+    }
+    click('#sheet .back');click('#home .back');settings();option('aid','full');click('#settings .back');beginSheet('names');
+    const beforeRun=state().completed;click('#goBtn');
+    for(let i=0;i<5;i++){const w=q('#chips').textContent;await finishWord(w);click('#nextBtn');}
+    assert(isPage('sheet')&&state().completed===beforeRun+5,'Five word departure');
+    pass('しゅっぱつは5語で終わり、合計に5回だけ加算する');
+    const failurePrelude='<script>Object.defineProperty(window,"localStorage",{get(){throw new Error("Storage disabled for test");}});<\/script>';
+    doc=await load(400,failurePrelude);beginSheet('hira');click('.cell[data-w="へ"]');await finishWord('へ');
+    pass('保存を禁止した環境でも最後まで遊べる');
+    output.textContent+='\n\nPASS: '+completed+' browser checks';
+  }catch(error){output.className='failed';output.textContent+='\n\nFAIL: '+error.stack;}
+  finally{localStorage.removeItem(storageKey);document.getElementById('run').disabled=false;}
+};
+</script>
+</html>
