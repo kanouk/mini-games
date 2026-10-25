@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="えきめい あいうえお の企画書（モックつき）">
+<title>えきめい あいうえお 企画</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&family=Klee+One:wght@600&display=swap">
+<style>
+/* レイアウト：なぞり書きのモックを先頭に、その結果がたまるシールちょうを次に、説明を下に。色はトップページ（空・草・濃紺の縁）に合わせる */
+:root{
+  --sky:#8fd0ff; --sky2:#d8f0ff;
+  --bg:#e9f5ff; --panel:#ffffff; --panel2:#f3f8fd;
+  --ink:#14213d; --sub:#4a5878; --line:#c9d6e8; --rail:#dde6f2;
+  --go:#ffcf33; --go-ink:#3a2a00;
+  --grass:#5fae5a; --blue:#3d8bff;
+  --bronze:#c4793a; --silver:#8e9db3; --gold:#e0a90f;
+  --shadow:rgba(20,33,61,.18);
+  --font:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+  --kana:"Klee One","UD Digi Kyokasho N-R","Hiragino Sans","Yu Gothic",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --sky:#1b2d52; --sky2:#0f1b33; --bg:#0f1b33; --panel:#1a2745; --panel2:#223256;
+  --ink:#eaf2ff; --sub:#a8b7d1; --line:#34466e; --rail:#2b3c62; --shadow:rgba(0,0,0,.45);
+  --bronze:#d58c4d; --silver:#b4c0d2; --gold:#f2c140; --blue:#6aa6ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --sky:#1b2d52; --sky2:#0f1b33; --bg:#0f1b33; --panel:#1a2745; --panel2:#223256;
+  --ink:#eaf2ff; --sub:#a8b7d1; --line:#34466e; --rail:#2b3c62; --shadow:rgba(0,0,0,.45);
+  --bronze:#d58c4d; --silver:#b4c0d2; --gold:#f2c140; --blue:#6aa6ff; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-weight:500;line-height:1.7;
+  padding-block:0 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:960px;margin:0 auto}
+h1,h2,h3{text-wrap:balance;line-height:1.25;font-weight:800;margin:0}
+h1{font-size:clamp(28px,6vw,44px)}
+h2{font-size:clamp(21px,4vw,27px);margin-block:46px 14px;display:flex;align-items:center;gap:10px}
+h2::before{content:"";width:12px;height:28px;border-radius:6px;background:var(--grass)}
+h3{font-size:18px;margin-block:18px 6px}
+p{margin:0 0 10px;max-width:65ch}
+.eyebrow{font-size:13px;letter-spacing:.12em;color:var(--sub);font-weight:800}
+
+header{position:relative;padding:34px 0 26px;margin-bottom:8px}
+header .tagline{font-size:18px;font-weight:800;margin-top:10px;color:var(--sub)}
+header .pill{display:inline-block;margin-top:10px;background:var(--panel);border:3px solid var(--ink);border-radius:999px;padding:4px 14px;font-weight:800;box-shadow:0 4px 0 var(--shadow)}
+.rail-deco{height:14px;margin-top:22px;background:repeating-linear-gradient(90deg,var(--sub) 0 14px,transparent 14px 34px);position:relative;border-radius:2px;opacity:.55}
+.rail-deco::before,.rail-deco::after{content:"";position:absolute;left:0;right:0;height:3px;background:var(--ink);opacity:.6}
+.rail-deco::before{top:1px}.rail-deco::after{bottom:1px}
+
+/* 共通：ゲーム風パネル */
+.mock{background:var(--panel);border:5px solid var(--ink);border-radius:26px;box-shadow:0 8px 0 var(--ink);overflow:hidden;margin-top:10px}
+.mock-head{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--sky);border-bottom:5px solid var(--ink)}
+.mock-head .ttl{font-size:22px;font-weight:800}
+.mock-head .note{font-size:13px;color:var(--ink);opacity:.85}
+.btn{border:4px solid var(--ink);border-radius:999px;padding:8px 20px;font:inherit;font-weight:800;font-size:17px;cursor:pointer;box-shadow:0 4px 0 var(--ink);background:var(--panel);color:var(--ink)}
+.btn.go{background:var(--go);color:var(--go-ink)}
+.btn.sm{font-size:15px;padding:6px 14px;border-width:3px;box-shadow:0 3px 0 var(--ink)}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+.btn[disabled]{opacity:.5;cursor:default}
+.btn[aria-pressed="true"]{background:var(--go);color:var(--go-ink)}
+.btn:focus-visible,.tab:focus-visible,.cell:focus-visible{outline:4px solid var(--go);outline-offset:3px}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+
+/* なぞりモック */
+.tracer{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:18px;padding:18px}
+@media (max-width:720px){.tracer{grid-template-columns:1fr}}
+.pad{position:relative;aspect-ratio:1;max-width:100%;background:var(--panel2);border:4px solid var(--ink);border-radius:20px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+.pad svg{display:block;width:100%;height:100%}
+.pad .grid-l{stroke:var(--line);stroke-width:.6;stroke-dasharray:2 2}
+.pad .rail{fill:none;stroke:var(--rail);stroke-width:10;stroke-linecap:round;stroke-linejoin:round}
+.pad .rail.cur{stroke:var(--sky)}
+.pad .tie{fill:none;stroke:var(--sub);stroke-width:5.5;stroke-linecap:butt;stroke-dasharray:1.4 5;opacity:.55}
+.pad .dots{fill:none;stroke:var(--sub);stroke-width:1.6;stroke-dasharray:2.5 3;opacity:.8}
+.pad .ghost{fill:none;stroke:var(--line);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;opacity:.5}
+.pad .done{fill:none;stroke:var(--ink);stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+.pad .user{fill:none;stroke:var(--blue);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+.pad .start{fill:var(--go);stroke:var(--ink);stroke-width:1.5}
+.pad .num{font-family:var(--font);font-weight:800;font-size:7px;fill:var(--ink)}
+.pad .arrow{fill:var(--ink)}
+.pad .train{font-size:11px;pointer-events:none}
+.pad.shake{animation:shake .4s}
+@keyframes shake{25%{translate:-5px 0}75%{translate:5px 0}}
+.pad .flash{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--kana);font-weight:600;font-size:min(42vw,220px);color:var(--ink);background:rgba(255,207,51,.55);animation:pop .9s ease-out forwards;pointer-events:none}
+@keyframes pop{from{opacity:0;scale:.7}30%{opacity:1;scale:1}to{opacity:0;scale:1.05}}
+.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.word{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end}
+.word .ch{font-family:var(--kana);font-weight:600;font-size:34px;line-height:1;padding:6px 8px;border:3px solid var(--line);border-radius:12px;color:var(--line);min-width:48px;text-align:center}
+.word .ch.small{font-size:24px;padding-bottom:8px}
+.word .ch.done{color:var(--ink);border-color:var(--ink);background:var(--panel)}
+.word .ch.cur{color:var(--sub);border-color:var(--go);background:var(--go);color:var(--go-ink)}
+.msg{min-height:3.2em;font-weight:800;font-size:17px;background:var(--panel2);border-radius:14px;padding:8px 14px}
+.aid{font-size:14px;color:var(--sub)}
+.aid b{color:var(--ink)}
+.ladder{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;font-size:12px;text-align:center}
+.ladder div{border:2px solid var(--line);border-radius:10px;padding:6px 4px;line-height:1.4}
+.ladder div.on{border-color:var(--go);background:var(--go);color:var(--go-ink);font-weight:800}
+.ladder small{display:block;color:inherit;opacity:.8}
+.strip{position:relative;height:40px;overflow:hidden;border-top:3px solid var(--line);background:var(--panel2)}
+.strip .t{position:absolute;left:-60px;top:4px;font-size:26px;animation:cross 1.6s ease-in-out forwards}
+@keyframes cross{to{left:calc(100% + 60px)}}
+
+/* シールちょう */
+.status{display:flex;flex-wrap:wrap;gap:8px 16px;padding:12px 18px;background:var(--panel2);border-bottom:3px solid var(--line);font-size:15px}
+.status b{font-weight:800}
+.num{font-variant-numeric:tabular-nums}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:12px 18px 0;scrollbar-width:thin}
+.tab{flex:0 0 auto;border:3px solid var(--ink);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 14px;font:inherit;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 3px 0 var(--ink)}
+.tab[aria-selected="true"]{background:var(--go);color:var(--go-ink)}
+.tab .m{display:inline-block;width:12px;height:12px;border-radius:50%;margin-left:6px;vertical-align:-1px;border:2px solid var(--ink);background:transparent}
+.sheet-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 18px 4px}
+.sheet-bar .sm{font-size:14px;color:var(--sub)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:12px;padding:12px 18px 18px}
+.grid.kana{grid-template-columns:repeat(auto-fill,minmax(64px,1fr))}
+.cell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:78px;padding:8px 6px 10px;
+  border:3px dashed var(--line);border-radius:14px;background:transparent;color:var(--ink);font:inherit;cursor:pointer;text-align:center;transition:transform .12s}
+.cell:hover{transform:translateY(-2px)}
+.cell .w{font-family:var(--kana);font-weight:600;font-size:17px;line-height:1.2;word-break:keep-all;overflow-wrap:anywhere}
+.kana .cell .w{font-size:26px}
+.cell .n{font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums}
+.cell .bar{position:absolute;left:10px;right:10px;bottom:4px;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.cell .bar i{display:block;height:100%;background:var(--grass);width:0}
+.cell .next{position:absolute;top:-9px;right:-4px;font-size:11px;font-weight:800;background:var(--go);color:var(--go-ink);border:2px solid var(--ink);border-radius:999px;padding:0 7px;line-height:1.5}
+.cell .tr{position:absolute;top:-8px;left:-4px;font-size:10px;font-weight:800;background:var(--blue);color:#fff;border-radius:999px;padding:0 6px;line-height:1.5}
+.cell.l0 .w{color:var(--line)}
+.cell.l1{border-style:solid;border-color:var(--line);background:var(--panel2)}
+.cell.l1 .w{color:var(--sub);opacity:.6}
+.cell.l2{border-style:solid;border-color:var(--ink);background:var(--panel);box-shadow:0 3px 0 var(--shadow)}
+.cell.l3{border:4px solid var(--bronze);background:var(--panel);box-shadow:0 3px 0 var(--bronze)}
+.cell.l4{border:4px solid var(--silver);background:var(--panel);box-shadow:0 3px 0 var(--silver)}
+.cell.l5{border:4px solid var(--gold);background:var(--panel);box-shadow:0 3px 0 var(--gold),0 0 0 3px rgba(224,169,15,.25)}
+.cell.l6{border:4px solid transparent;background:linear-gradient(var(--panel),var(--panel)) padding-box,linear-gradient(120deg,#ff6b6b,#ffd23d,#5cc85c,#3d8bff,#8a6bff,#ff7ac0) border-box;box-shadow:0 3px 0 var(--gold);animation:shine 2.4s linear infinite}
+@keyframes shine{50%{filter:brightness(1.18)}}
+.cell.bump{animation:bump .35s ease-out}
+@keyframes bump{30%{transform:scale(1.14)}}
+.ekimei .cell.l2,.ekimei .cell.l3,.ekimei .cell.l4,.ekimei .cell.l5,.ekimei .cell.l6{padding-top:14px}
+.ekimei .cell.l2::before,.ekimei .cell.l3::before,.ekimei .cell.l4::before,.ekimei .cell.l5::before,.ekimei .cell.l6::before{content:"";position:absolute;left:0;right:0;top:0;height:7px;background:var(--grass);border-radius:10px 10px 0 0}
+
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));translate:-50% 0;background:var(--panel);border:4px solid var(--ink);border-radius:999px;padding:10px 20px;font-weight:800;font-size:17px;box-shadow:0 5px 0 var(--ink);z-index:20;max-width:calc(100vw - 32px);text-align:center}
+.toast.gold{background:var(--go);color:var(--go-ink)}
+
+/* 説明 */
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:18px}
+.box{background:var(--panel);border:3px solid var(--line);border-radius:18px;padding:16px 18px;min-width:0}
+.box h3{margin-top:0}
+.box.main{border-color:var(--ink);border-width:4px;box-shadow:0 5px 0 var(--shadow)}
+ol,ul{margin:0;padding-left:1.3em}
+li{margin-bottom:6px}
+li b{font-weight:800}
+table{border-collapse:collapse;width:100%;font-size:15px}
+.tbl{overflow-x:auto}
+th,td{text-align:left;padding:8px 10px;border-bottom:2px solid var(--line);vertical-align:top}
+th{font-weight:800;color:var(--sub);font-size:13px;letter-spacing:.06em}
+td.num{font-weight:800}
+.swatch{display:inline-block;width:38px;height:24px;border-radius:7px;vertical-align:middle;margin-right:6px;border:3px dashed var(--line)}
+.swatch.l1{border-style:solid;background:var(--panel2)}
+.swatch.l2{border:3px solid var(--ink)}
+.swatch.l3{border:3px solid var(--bronze)}
+.swatch.l4{border:3px solid var(--silver)}
+.swatch.l5{border:3px solid var(--gold)}
+.swatch.l6{border:3px solid transparent;background:linear-gradient(var(--panel),var(--panel)) padding-box,linear-gradient(120deg,#ff6b6b,#ffd23d,#5cc85c,#3d8bff,#8a6bff,#ff7ac0) border-box}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.flow .step{background:var(--panel);border:3px solid var(--ink);border-radius:14px;padding:8px 14px;font-weight:800;box-shadow:0 3px 0 var(--shadow)}
+.flow .arr{color:var(--sub);font-weight:800}
+.decide li{list-style:none;margin-left:-1.3em;padding:10px 14px;border:3px solid var(--go);border-radius:14px;background:var(--panel);margin-bottom:10px}
+.decide li b{display:block}
+.muted{color:var(--sub);font-size:14px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">ソウスケゲームズ ／ あたらしいアプリの企画</div>
+  <h1>えきめい あいうえお</h1>
+  <p class="tagline">電車のことばを、指で「なぞって」おぼえる。文字の形がレール、指が電車。書き順どおりに走らせると駅名ができあがり、アナウンスが流れる。</p>
+  <span class="pill">中心は なぞり書き。シールちょうは「なぞった記録」がたまる場所</span>
+  <p style="margin-top:16px"><a href="https://claude.ai/artifact/8yix3V7P7Yaz3GBFGejzUr" style="display:inline-block;background:var(--go);color:var(--go-ink);border:4px solid var(--ink);border-radius:999px;padding:8px 22px;font-weight:800;text-decoration:none;box-shadow:0 4px 0 var(--ink)">▶ 本番イメージの試作アプリ（説明文なし・音声つき）を開く</a></p>
+  <div class="rail-deco" aria-hidden="true"></div>
+</header>
+
+<p class="eyebrow">さわって確認するモック 1：レールなぞり（アプリの中心）</p>
+<p>黄色い● のスタート駅から、水色のレールの上を指（マウス）でなぞってください。1本なぞるごとにレールが線路になり、文字が全部できると読み上げて次の字へ進みます。言葉ができあがると電車が走って、下のシールちょうに1回ぶん記録されます。まちがえても減点はなく、やりなおすだけです。</p>
+
+<section class="mock" aria-label="レールなぞりのモック">
+  <div class="mock-head">
+    <div class="ttl">レールなぞり</div>
+    <div class="note">と・う・き・よ の4文字は、本番で使う筆順データ（KanjiVG）そのものです</div>
+  </div>
+  <div class="tracer">
+    <div>
+      <div class="pad" id="pad">
+        <svg id="padSvg" viewBox="0 0 100 100" aria-label="なぞる場所"></svg>
+      </div>
+      <div class="btns" style="margin-top:10px">
+        <button class="btn sm" id="demoBtn" type="button">おてほん</button>
+        <button class="btn sm" id="skipBtn" type="button">この字は とばす</button>
+      </div>
+    </div>
+    <div class="side">
+      <div>
+        <div class="eyebrow">なぞる ことば</div>
+        <div class="btns" id="wordBtns" style="margin-top:6px"></div>
+      </div>
+      <div class="word" id="wordView"></div>
+      <div class="msg" id="msg"></div>
+      <div class="aid">おてつだいの量は、その言葉の練習回数で自動的に減ります（今：<b id="aidName"></b>）。確認用に切りかえ：</div>
+      <div class="ladder" id="ladder">
+        <div data-a="0">たっぷり<small>太いレール＋番号＋おてほん</small></div>
+        <div data-a="1">てんせん<small>銅から。細い点線だけ</small></div>
+        <div data-a="2">かげ<small>銀から。うすい影だけ</small></div>
+        <div data-a="3">なし<small>金から。声だけで白紙に</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="strip" id="strip" aria-hidden="true"></div>
+</section>
+
+<p class="eyebrow" style="margin-top:34px">さわって確認するモック 2：シールちょう（なぞった記録がたまる）</p>
+<p>上でなぞった言葉が、ここに記録されます。マスを直接タップしても1回ぶん進むようにしてあるので、たくさん練習した先の見え方（銅・銀・金）もここで確かめられます。言葉を練習すると、含まれる文字の「あいうえお」シートも一緒に進みます。</p>
+
+<section class="mock" aria-label="シールちょうのモック">
+  <div class="mock-head">
+    <div class="ttl">シールちょう</div>
+    <div class="note">マス＝言葉1つ。なぞった回数で見た目と「おてつだいの量」が変わる</div>
+  </div>
+  <div class="status" id="status"></div>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="sheet-bar">
+    <div class="sm" id="sheetInfo"></div>
+    <div class="btns">
+      <button class="btn go" id="goBtn" type="button">しゅっぱつ！（5問ぶん）</button>
+      <button class="btn" id="resetBtn" type="button">リセット</button>
+    </div>
+  </div>
+  <div class="grid" id="grid" role="tabpanel"></div>
+</section>
+
+<h2>なぞり書きの設計（ここが本体）</h2>
+<div class="cols">
+  <div class="box main">
+    <h3>画面</h3>
+    <ul>
+      <li><b>文字の形がレール。</b>一画ずつ、太いレールと枕木で描く。今なぞる一画だけ水色に光り、スタート駅は黄色い●、画数は番号で示す。</li>
+      <li><b>指が電車。</b>なぞっている間、指先に小さな電車がついてきて、走った部分が線路に変わる。</li>
+      <li><b>一画できるごとに「カタン」。</b>全部できると文字が大きく光って読み上げ（「と」）。言葉がそろうと「つぎは、とうきょう」のアナウンスと発車。</li>
+      <li><b>おてほんボタン。</b>電車が自動で線路を走って書き順を見せる。何回でも押せる。</li>
+    </ul>
+  </div>
+  <div class="box main">
+    <h3>判定（失敗なし・でも甘すぎない）</h3>
+    <ul>
+      <li>スタート駅の近くから始めたか。違えば「●から はじめよう」と光らせてやり直し。</li>
+      <li>レールの上を、順番に、だいたい通ったか（レールの太さぶんの許容。7割通れば合格）。</li>
+      <li>終点の方向に進んだか（逆走は不合格、ただし責めずにおてほんを流す）。</li>
+      <li>不合格は「もういちど」だけ。減点も×もない。3回続けて迷ったら自動でおてほんが走る。</li>
+    </ul>
+  </div>
+  <div class="box main">
+    <h3>繰り返すほど「おてつだい」が減る</h3>
+    <p>同じ字を何度もなぞる意味を、見た目のメダルだけでなく練習の中身に持たせます。マスの段階に連動して補助が減ります。</p>
+    <table>
+      <tbody>
+        <tr><td>〜銅の手前</td><td>太いレール・番号・スタート●・おてほん</td></tr>
+        <tr><td>銅から</td><td>細い点線のレールだけ。番号は残す</td></tr>
+        <tr><td>銀から</td><td>うすい影だけ。書き順は自分で</td></tr>
+        <tr><td>金から</td><td>何もない白紙に、声だけを聞いて書く</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">白紙でも、判定はこっそり同じレールで行います。できたときの「見ないで書けた！」がいちばん大きなごほうびです。</p>
+  </div>
+  <div class="box">
+    <h3>字形と筆順データ</h3>
+    <ul>
+      <li>見本の字は教科書体に近い <b>Klee One</b>（このページの文字）。丸ゴシックは学習用の形と差があるため使わない。</li>
+      <li>レールの座標は、筆順つきの <b>KanjiVG</b>（ひらがな・カタカナ収録）をそのまま使う。このモックの4文字がその実物で、同じ手順でひらがな46・カタカナ46・濁音・小さい字ぶんを機械的に取り込める。字形の精度は手作業ではなくデータに頼るので、全文字この品質になる。</li>
+      <li class="muted">筆順データ出典：KanjiVG © Ulrich Apel、CC BY-SA 3.0。アプリ内にも同じ表記を入れる。</li>
+      <li>小さい「ょ」「っ」は同じレールを小さく右下に置く。長音「ー」は一直線のレール。</li>
+    </ul>
+  </div>
+</div>
+
+<h2>なぞる題材（電車のことば）</h2>
+<div class="tbl box">
+  <table>
+    <thead><tr><th>シート</th><th>マス数</th><th>中身</th><th>はじめから</th></tr></thead>
+    <tbody>
+      <tr><td>あいうえお ／ アイウエオ</td><td class="num">46＋46</td><td>文字そのもの。言葉をなぞると、含まれる文字のマスも自動で進む。1文字だけを何度もなぞることもできる</td><td>開いている</td></tr>
+      <tr><td>しんかんせんの なまえ</td><td class="num">19</td><td>のぞみ・ひかり・こだま・みずほ・さくら・つばめ・かもめ・はやぶさ・はやて・やまびこ・なすの・こまち・つばさ・とき・たにがわ・かがやき・はくたか・つるぎ・あさま（全部ひらがな）</td><td>開いている</td></tr>
+      <tr><td>えきめい（路線ごと）</td><td class="num">118</td><td>既存ゲームの駅データを路線別に。最初は東海道（17駅）だけ開き、シートが銅になるたび次の路線が開く</td><td>東海道のみ</td></tr>
+      <tr><td>でんしゃの ことば（カタカナ）</td><td class="num">約40</td><td>ホーム・ドア・レール・トンネル・ブレーキ・パンタグラフ・モノレール・エレベーター・ドクターイエロー など</td><td>設定で選べる</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>マスの育ち方と数え方</h2>
+<div class="cols">
+  <div class="box tbl">
+    <table>
+      <thead><tr><th>なぞった回数</th><th>見え方</th><th>おてつだい</th></tr></thead>
+      <tbody>
+        <tr><td class="num">0</td><td><span class="swatch"></span>点線の空マス</td><td>たっぷり</td></tr>
+        <tr><td class="num">1</td><td><span class="swatch l1"></span>うすい影</td><td>たっぷり</td></tr>
+        <tr><td class="num">3</td><td><span class="swatch l2"></span>色つきシール</td><td>たっぷり</td></tr>
+        <tr><td class="num">5</td><td><span class="swatch l3"></span>銅の枠</td><td>てんせん</td></tr>
+        <tr><td class="num">10</td><td><span class="swatch l4"></span>銀の枠</td><td>かげ</td></tr>
+        <tr><td class="num">20</td><td><span class="swatch l5"></span>金の枠</td><td>なし（白紙）</td></tr>
+        <tr><td class="num">40</td><td><span class="swatch l6"></span>キラキラ金</td><td>なし</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="box">
+    <h3>ルール</h3>
+    <ul>
+      <li><b>1回＝言葉を最後までなぞること。</b>途中で迷っても、やり直して書き終えれば1回。減ることはない。</li>
+      <li><b>言葉をなぞると文字も進む。</b>「はやぶさ」で、は・や・ふ(ぶ)・さ の4マスにも1回ずつ。</li>
+      <li><b>シートのメダル</b>は全マスの最低値。<b>本人の称号</b>は合計回数：けんしゅうせい → しゃしょう(30) → うんてんし(100) → しんかんせん うんてんし(250) → していん(500) → えきちょう(1000)。</li>
+    </ul>
+  </div>
+</div>
+
+<h2>たくさん なぞりたくなる工夫</h2>
+<div class="cols">
+  <div class="box">
+    <ol>
+      <li><b>1回が短い。</b>「しゅっぱつ」1タップで言葉5つ、約2分。終わると「つぎの えきへ」だけが出て1タップで続く。途中でやめても回数は残る。</li>
+      <li><b>おてつだいが減っていく。</b>同じ字でも、点線 → 影 → 白紙と難しくなるので飽きない。「見ないで書けた」が次の目標になる。</li>
+      <li><b>「あと○かい」の予告。</b>次のメダルが近い言葉に黄色いタグ。出題にも優先して混ざる。</li>
+      <li><b>出題は自動でちょうどよく。</b>回数が少ない言葉・前に迷った言葉・メダル目前の言葉を混ぜる。</li>
+    </ol>
+  </div>
+  <div class="box">
+    <ol start="5">
+      <li><b>好きな字・言葉を直接なぞれる。</b>シールちょうのマスをタップすれば、その言葉だけを何度でも。</li>
+      <li><b>できた瞬間の演出。</b>一画ごとに「カタン」、文字で光って読み上げ、言葉で電車が発車。メダルで電車が横切りファンファーレ。</li>
+      <li><b>ごほうびが次につながる。</b>シートが銅で次の路線が開く。取った車体色は「しんかんせん うんてんし」でも使える。</li>
+      <li><b>きょうの しゅっぱつ と おうちの人むけの きろく。</b>1日の最初のなぞりで日付スタンプ。どの字を何回なぞったかを見られる画面。</li>
+    </ol>
+  </div>
+</div>
+
+<h2>なぞりを支える3つのサブモード（後から）</h2>
+<div class="cols">
+  <div class="box"><h3>えきめいひょう クイズ（よむ）</h3><p>なぞる前のウォームアップ。駅名標の穴に入る字を3択で。まだ書けない字でも読む練習になる。</p></div>
+  <div class="box"><h3>アナウンスを きいて えらぶ（きく）</h3><p>音声だけで駅名標を選ぶ。「白紙に声だけで書く」段階への橋わたし。</p></div>
+  <div class="box"><h3>ことばの れんけつ（ならべる）</h3><p>なぞった字の車両を連結して言葉にする。なぞりのごほうびとして出す。</p></div>
+</div>
+<p class="muted" style="margin-top:10px">どのモードで解いても同じ1回として数えますが、中心はなぞりです。出題5問のうち最低3問はなぞりにします。</p>
+
+<h2>画面の流れ</h2>
+<div class="flow">
+  <span class="step">タイトル</span><span class="arr">→</span>
+  <span class="step">シールちょう（ホーム）</span><span class="arr">→</span>
+  <span class="step">しゅっぱつ！ 言葉5つを なぞる</span><span class="arr">→</span>
+  <span class="step">けっか（メダル・スタンプ）</span><span class="arr">→</span>
+  <span class="step">つぎの えきへ ／ もどる</span>
+</div>
+
+<h2>作り方と進め方</h2>
+<div class="cols">
+  <div class="box">
+    <h3>ファイル</h3>
+    <ul>
+      <li><code>ekimei-aiueo/ekimei.html</code>：本体（HTML・CSS・JS・筆順データを1ファイルに）</li>
+      <li><code>ekimei-aiueo/tests/strokes.test.js</code>：全文字に筆順データがある、画数が辞書と一致する、言葉が解禁文字だけで書ける、しきい値が単調</li>
+      <li><code>ekimei-aiueo/README.md</code>、トップページにカード追加</li>
+      <li>流用：駅名・よみ（118駅）、読み上げの声えらび、効果音の仕組み。保存はブラウザ内</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h3>MVP（最初に出す）</h3>
+    <ul>
+      <li><b>レールなぞり</b>：ひらがな46文字ぶんの筆順データ、判定、おてほん、おてつだい4段階</li>
+      <li>シート3枚：あいうえお・しんかんせんの なまえ・えきめい 東海道</li>
+      <li>マスの7段階、シートのメダル、称号、「あと○かい」、しゅっぱつ5問</li>
+    </ul>
+    <h3>その後</h3>
+    <ul>
+      <li>カタカナ46・濁音・小さい字の筆順データ、他の路線シート</li>
+      <li>サブモード3つ、日付スタンプ、きろく画面、運転ゲームとの車体色連携</li>
+    </ul>
+  </div>
+</div>
+
+<h2>決めてほしいこと</h2>
+<ul class="decide">
+  <li><b>なぞりの判定の厳しさ。</b>モックの「レールの7割を順に通る」くらいか、もっと甘く／厳しくするか。実際に上のモックで試した感触を教えてください。</li>
+  <li><b>おてつだいが減るタイミング。</b>銅(5回)で点線、銀(10回)で影、金(20回)で白紙、の速さでよいか。</li>
+  <li><b>最初はひらがなだけでよいか。</b>カタカナの筆順データは後から足す案です。</li>
+  <li><b>称号の名前とアプリ名。</b>けんしゅうせい〜えきちょう、「えきめい あいうえお」のままでよいか。</li>
+</ul>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(function(){
+  // ======== 共通データ ========
+  const SHEETS=[
+    {id:'hira',name:'あいうえお',kind:'kana',
+      words:'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん'.split('')},
+    {id:'names',name:'しんかんせんの なまえ',kind:'word',
+      words:['のぞみ','ひかり','こだま','みずほ','さくら','つばめ','かもめ','はやぶさ','はやて','やまびこ','なすの','こまち','つばさ','とき','たにがわ','かがやき','はくたか','つるぎ','あさま']},
+    {id:'tokaido',name:'えきめい 東海道',kind:'word',cls:'ekimei',
+      words:['とうきょう','しながわ','しんよこはま','おだわら','あたみ','みしま','しんふじ','しずおか','かけがわ','はままつ','とよはし','みかわあんじょう','なごや','ぎふはしま','まいばら','きょうと','しんおおさか']},
+    {id:'kata',name:'でんしゃの ことば',kind:'word',
+      words:['ホーム','ドア','レール','トンネル','ブレーキ','チャイム','パンタグラフ','モノレール','エレベーター','ライト','シート','ベル','カーブ','スピード','ポイント','デッキ','トイレ','リニア','トロッコ','ドクターイエロー']},
+    {id:'kata46',name:'アイウエオ',kind:'kana',
+      words:'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン'.split('')},
+  ];
+  const TH=[0,1,3,5,10,20,40];
+  const TNAME=['','かげ','いろ','どう','ぎん','きん','キラキラきん'];
+  const TITLES=[[0,'けんしゅうせい'],[30,'しゃしょう'],[100,'うんてんし'],[250,'しんかんせん うんてんし'],[500,'していん'],[1000,'えきちょう']];
+  const BASE={};
+  ('がか ぎき ぐく げけ ごこ ざさ じし ずす ぜせ ぞそ だた ぢち づつ でて どと ばは びひ ぶふ べへ ぼほ ぱは ぴひ ぷふ ぺへ ぽほ ぁあ ぃい ぅう ぇえ ぉお ゃや ゅゆ ょよ っつ ゎわ '+
+   'ガカ ギキ グク ゲケ ゴコ ザサ ジシ ズス ゼセ ゾソ ダタ ヂチ ヅツ デテ ドト バハ ビヒ ブフ ベヘ ボホ パハ ピヒ プフ ペヘ ポホ ァア ィイ ゥウ ェエ ォオ ャヤ ュユ ョヨ ッツ ヴウ').split(' ').forEach(p=>{BASE[p[0]]=p[1];});
+  const HIRA=new Set(SHEETS[0].words), KATA=new Set(SHEETS[4].words);
+  const SMALL=new Set('ぁぃぅぇぉゃゅょっゎァィゥェォャュョッ');
+
+  // 筆順データ：KanjiVG（Ulrich Apel, CC BY-SA 3.0）の 109×109 座標をそのまま使い、表示時に 100/109 に縮める。本番は全文字ぶん同じ方法で取り込む
+  const K=100/109;
+  const STROKES={
+    'と':['M35.5,18.38c1.74,0.74,3.62,2.62,4.12,5.37c0.5,2.75,4.75,25,5.38,28.12',
+          'M78.12,25.5c0.25,1.88,0.04,4.09-2.25,5.75c-6.37,4.63-13.22,8.49-22.75,15.25c-12.88,9.12-21.62,18.38-21.62,27.5c0,10.12,8.5,13.88,26.88,13.88c6.25,0,14.75-0.12,21.62-1.25'],
+    'う':['M42,15.5c5.62,2.12,9.62,3,12.88,3c8.27,0,8,1.12-0.38,5.5',
+          'M33,42.38c2.12,1.12,4.12,2.88,8.5,1.38c4.38-1.5,12.75-7.12,18.5-7c5.75,0.12,10.25,5,10.25,18c0,15.49-8.25,30.24-24.37,41.24'],
+    'き':['M30.5,30.25c1.88,0.75,4.64,1.06,5.88,0.88c6.75-1,22.25-4.5,26.5-6c2.17-0.76,3.5-1.25,4.88-2.12',
+          'M36.25,48.7c2.01,0.85,4.97,1.2,6.29,0.99c7.23-1.13,23.82-5.09,28.37-6.79c2.32-0.86,3.75-1.41,5.22-2.4',
+          'M42,14.12c1.5,0.88,3.13,2.94,4,5.12c5.5,13.76,16,29.26,26.37,40.76c7.64,8.47,9.12,9.38-6,3.88',
+          'M33.75,83.25c10.62,9.75,27.25,8.62,38.12,5'],
+    'よ':['M58.24,35.38c7.5-1.28,13.74-2.63,18.5-4.1c2.5-0.77,4.77-1.15,6.25-1.15',
+          'M54.62,13.88c2.25,2.12,2.98,4.13,2.88,6.5c-0.75,17-0.12,34.88,1.39,53.5c1.88,23.07-34.89,20.88-34.89,11.5c0-12,26.25-8,35.98-4.12c8.1,3.23,11.52,4.88,18.52,10.38'],
+  };
+  const WORDS=[{w:'とうきょう',sheet:'tokaido'},{w:'きょうと',sheet:'tokaido'},{w:'と',sheet:'hira'},{w:'う',sheet:'hira'},{w:'き',sheet:'hira'},{w:'よ',sheet:'hira'}];
+
+  // ======== 状態と保存 ========
+  let counts={};let cur='hira';
+  try{const s=localStorage.getItem('ekimei-kikaku-mock2');if(s)counts=JSON.parse(s)||{};}catch(e){}
+  const save=()=>{try{localStorage.setItem('ekimei-kikaku-mock2',JSON.stringify(counts));}catch(e){}};
+  const key=(sid,w)=>sid+':'+w, n=(sid,w)=>counts[key(sid,w)]||0;
+  const level=c=>{let l=0;for(let i=0;i<TH.length;i++)if(c>=TH[i])l=i;return l;};
+  const nextTh=c=>TH.find(t=>t>c);
+  const total=()=>SHEETS.filter(s=>s.kind==='word').reduce((a,s)=>a+s.words.reduce((b,w)=>b+n(s.id,w),0),0)+SHEETS.filter(s=>s.kind==='kana').reduce((a,s)=>a+s.words.reduce((b,w)=>b+(counts[key(s.id,w)+'#solo']||0),0),0);
+  const title=t=>{let r=TITLES[0][1];for(const [k,v] of TITLES)if(t>=k)r=v;return r;};
+  const sheetLevel=s=>Math.min(...s.words.map(w=>level(n(s.id,w))));
+  function practice(sid,w){
+    const ups=[];
+    const bump=(id,x)=>{const k=key(id,x),before=level(counts[k]||0);counts[k]=(counts[k]||0)+1;const after=level(counts[k]);if(after>before&&after>=3)ups.push({word:x,lv:after});};
+    bump(sid,w);
+    const sheet=SHEETS.find(s=>s.id===sid);
+    if(sheet.kind==='word'){const seen=new Set();for(const ch of w){const b=BASE[ch]||ch;if(seen.has(b))continue;seen.add(b);if(HIRA.has(b))bump('hira',b);else if(KATA.has(b))bump('kata46',b);}}
+    else{counts[key(sid,w)+'#solo']=(counts[key(sid,w)+'#solo']||0)+1;}
+    save();return ups;
+  }
+  function pick5(sheet){
+    const sc=sheet.words.map(w=>{const c=n(sheet.id,w),nt=nextTh(c);let s=1+Math.random()*2;if(c<3)s+=3;if(nt&&nt-c<=2&&c>0)s+=3;if(c>=40)s-=2;return{w,s};});
+    sc.sort((a,b)=>b.s-a.s);return sc.slice(0,5).map(x=>x.w);
+  }
+
+  // ======== 音 ========
+  let AC=null;
+  const ensureAudio=()=>{try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}};
+  function tone(f,dur,type,vol){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain();o.type=type||'triangle';o.frequency.value=f;g.gain.value=vol||.12;g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+dur);o.connect(g).connect(AC.destination);o.start();o.stop(AC.currentTime+dur);}
+  const katan=()=>{tone(220,.08,'square',.06);setTimeout(()=>tone(180,.08,'square',.05),70);};
+  const chime=()=>{[523,659,784].forEach((f,i)=>setTimeout(()=>tone(f,.35),i*110));};
+  const fanfare=()=>{[523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,.4,'triangle',.14),i*120));};
+  let voice=null;
+  function pickVoice(){if(!('speechSynthesis'in window))return;const vs=speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang));voice=vs.find(v=>/Kyoko|Google|O-?ren|Haruka|Sayaka|Nanami/i.test(v.name))||vs[0]||null;}
+  if('speechSynthesis'in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice;}
+  function say(t,rate){if(!('speechSynthesis'in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';if(voice)u.voice=voice;u.rate=rate||.9;speechSynthesis.speak(u);}catch(e){}}
+
+  // ======== なぞりモック ========
+  const $=id=>document.getElementById(id);
+  const svg=$('padSvg'), pad=$('pad');
+  const NS='http://www.w3.org/2000/svg';
+  const el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+  let word=WORDS[0], ci=0, si=0, aidOverride=null, pts=[], drawing=false, miss=0, userPath=null, trainEl=null;
+  const AIDN=['たっぷり','てんせん','かげ','なし'];
+  function autoAid(){const c=n(word.sheet,word.w);const lv=level(c);return lv>=5?3:lv>=4?2:lv>=3?1:0;}
+  const aid=()=>aidOverride==null?autoAid():aidOverride;
+  function charTransform(ch){return SMALL.has(ch)?`translate(30 32) scale(${(.68*K).toFixed(4)})`:`scale(${K.toFixed(4)})`;}
+  function strokesOf(ch){return STROKES[BASE[ch]||ch]||null;}
+
+  function renderPad(){
+    svg.innerHTML='';
+    const ch=word.w[ci];const st=strokesOf(ch);
+    // 下じき
+    svg.appendChild(el('line',{x1:50,y1:0,x2:50,y2:100,class:'grid-l'}));svg.appendChild(el('line',{x1:0,y1:50,x2:100,y2:50,class:'grid-l'}));
+    if(!st){const t=el('text',{x:50,y:56,'text-anchor':'middle',class:'num',style:'font-size:7px'});t.textContent='この字は モックに データなし';svg.appendChild(t);return;}
+    const g=el('g',{transform:charTransform(ch)});svg.appendChild(g);
+    const a=aid();
+    st.forEach((d,i)=>{
+      if(i<si){g.appendChild(el('path',{d,class:'done'}));return;}
+      if(a===0){g.appendChild(el('path',{d,class:'rail'+(i===si?' cur':'')}));g.appendChild(el('path',{d,class:'tie'}));}
+      else if(a===1){g.appendChild(el('path',{d,class:'dots'}));}
+      else if(a===2){g.appendChild(el('path',{d,class:'ghost'}));}
+      if(a<=1){
+        const p=el('path',{d});const s=p.getPointAtLength.bind(p);g.appendChild(p);p.setAttribute('fill','none');p.setAttribute('stroke','none');
+        const p0=s(0),p1=s(Math.min(6,p.getTotalLength()));
+        if(i===si){g.appendChild(el('circle',{cx:p0.x,cy:p0.y,r:4.2,class:'start'}));
+          const ang=Math.atan2(p1.y-p0.y,p1.x-p0.x)*180/Math.PI;g.appendChild(el('path',{d:'M0 -3 L6 0 L0 3 Z',class:'arrow',transform:`translate(${p1.x} ${p1.y}) rotate(${ang})`}));}
+        const t=el('text',{x:p0.x-7,y:p0.y-5,class:'num'});t.textContent=i+1;g.appendChild(t);
+      }
+    });
+    userPath=el('path',{d:'',class:'user'});g.appendChild(userPath);
+    trainEl=el('text',{x:-20,y:-20,class:'train'});trainEl.textContent='🚃';g.appendChild(trainEl);
+    $('aidName').textContent=AIDN[a]+(aidOverride==null?'（自動）':'（確認用）');
+    document.querySelectorAll('#ladder div').forEach(d=>d.classList.toggle('on',+d.dataset.a===a));
+  }
+  function renderWord(){
+    $('wordView').innerHTML=[...word.w].map((c,i)=>`<span class="ch${SMALL.has(c)?' small':''}${i<ci?' done':i===ci?' cur':''}">${c}</span>`).join('');
+    $('wordBtns').innerHTML=WORDS.map(x=>`<button class="btn sm" type="button" data-w="${x.w}" aria-pressed="${x.w===word.w}">${x.w}</button>`).join('');
+  }
+  function setMsg(t){$('msg').textContent=t;}
+  function startWord(x){word=x;ci=0;si=0;miss=0;renderWord();renderPad();setMsg(`「${word.w}」を なぞろう。${aid()===0?'● から 水色のレールの 上を すすんでね。':aid()===3?'おてつだいは なし。おぼえた形で かいてみよう。':'おてつだいが すくなくなっているよ。'}`);}
+
+  // 座標
+  function toSvg(e){const r=svg.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*100,y:(e.clientY-r.top)/r.height*100};}
+  function invTransform(p,ch){if(!SMALL.has(ch))return{x:p.x/K,y:p.y/K};return{x:(p.x-30)/.68/K,y:(p.y-32)/.68/K};}
+  function samples(d,k){const p=el('path',{d});const L=p.getTotalLength();const out=[];for(let i=0;i<=k;i++){const q=p.getPointAtLength(L*i/k);out.push({x:q.x,y:q.y});}return out;}
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  function judge(user,d){
+    if(user.length<3)return{ok:false,why:'short'};
+    const g=samples(d,24);const TOL=12;
+    if(dist(user[0],g[0])>16)return{ok:false,why:'start'};
+    let hit=0,lastIdx=-1,back=0;
+    for(const q of g){let best=1e9,bi=-1;user.forEach((u,i)=>{const dd=dist(u,q);if(dd<best){best=dd;bi=i;}});if(best<=TOL){hit++;if(bi<lastIdx-3)back++;lastIdx=Math.max(lastIdx,bi);}}
+    if(hit/g.length<.7)return{ok:false,why:'cover'};
+    if(back>g.length*.3)return{ok:false,why:'dir'};
+    const endU=user[user.length-1];if(dist(endU,g[g.length-1])>24)return{ok:false,why:'end'};
+    return{ok:true};
+  }
+  function onDown(e){const ch=word.w[ci];if(!strokesOf(ch))return;ensureAudio();drawing=true;pts=[];pad.setPointerCapture(e.pointerId);onMove(e);}
+  function onMove(e){if(!drawing)return;const p=invTransform(toSvg(e),word.w[ci]);pts.push(p);
+    userPath.setAttribute('d',pts.map((q,i)=>(i?'L':'M')+q.x.toFixed(1)+' '+q.y.toFixed(1)).join(' '));
+    trainEl.setAttribute('x',p.x-6);trainEl.setAttribute('y',p.y+4);}
+  function onUp(){if(!drawing)return;drawing=false;const st=strokesOf(word.w[ci]);const r=judge(pts,st[si]);
+    if(r.ok){katan();si++;miss=0;
+      if(si>=st.length){charDone();}else{renderPad();setMsg(`カタン！ ${si}かくめ できた。つぎは ${si+1}。`);}
+    }else{miss++;pad.classList.remove('shake');void pad.offsetWidth;pad.classList.add('shake');userPath.setAttribute('d','');trainEl.setAttribute('x',-20);
+      const m={start:'黄色い ● から はじめよう。',cover:'レールの 上を とおってね。もういちど。',dir:'むきが ぎゃくかな？ ● から すすもう。',end:'おわりまで すすもう。もういちど。',short:'もうすこし ながく なぞろう。'}[r.why];
+      setMsg(m+(miss>=3?' おてほんを ながすね。':''));if(miss>=3){miss=0;setTimeout(demo,500);}}
+  }
+  function charDone(){const ch=word.w[ci];chime();renderPad();const f=document.createElement('div');f.className='flash';f.textContent=ch;pad.appendChild(f);setTimeout(()=>f.remove(),900);say(SMALL.has(ch)?'ちいさい '+BASE[ch]:ch);
+    ci++;si=0;renderWord();
+    if(ci>=word.w.length){setTimeout(wordDone,900);}else{setTimeout(()=>{renderPad();setMsg(`「${ch}」できた！ つぎは「${word.w[ci]}」。`);},900);}
+  }
+  function wordDone(){fanfare();const ups=practice(word.sheet,word.w);renderSheet();toast(ups,word.w);
+    setTimeout(()=>say(word.sheet==='tokaido'?`つぎは、${word.w}。${word.w}。`:word.w),300);
+    const s=$('strip');s.innerHTML='<span class="t">🚄</span>';setMsg(`「${word.w}」が できた！ シールちょうに 1回 きろく。もういちど なぞると、おてつだいが へっていくよ。`);
+    ci=0;si=0;setTimeout(()=>{renderWord();renderPad();},1600);
+  }
+  function demo(){const st=strokesOf(word.w[ci]);if(!st||drawing)return;ensureAudio();const p=el('path',{d:st[si]});const L=p.getTotalLength();const t0=performance.now(),D=1100;
+    const g=svg.querySelector('g');const tr=el('text',{class:'train'});tr.textContent='🚃';g.appendChild(tr);const trail=el('path',{d:'',class:'user'});g.appendChild(trail);
+    (function f(now){const k=Math.min(1,(now-t0)/D);const q=p.getPointAtLength(L*k);tr.setAttribute('x',q.x-6);tr.setAttribute('y',q.y+4);
+      const pts2=[];for(let i=0;i<=20;i++){const z=p.getPointAtLength(L*k*i/20);pts2.push((i?'L':'M')+z.x.toFixed(1)+' '+z.y.toFixed(1));}trail.setAttribute('d',pts2.join(' '));
+      if(k<1)requestAnimationFrame(f);else setTimeout(()=>{tr.remove();trail.remove();},400);})(t0);
+    setMsg(`おてほん：${si+1}かくめは こう すすむよ。`);}
+  pad.addEventListener('pointerdown',onDown);pad.addEventListener('pointermove',onMove);pad.addEventListener('pointerup',onUp);pad.addEventListener('pointercancel',onUp);
+  $('demoBtn').addEventListener('click',demo);
+  $('skipBtn').addEventListener('click',()=>{const st=strokesOf(word.w[ci]);if(!st){ci++;si=0;if(ci>=word.w.length){ci=0;}renderWord();renderPad();return;}si=st.length;charDone();});
+  $('wordBtns').addEventListener('click',e=>{const b=e.target.closest('[data-w]');if(!b)return;ensureAudio();startWord(WORDS.find(x=>x.w===b.dataset.w));});
+  $('ladder').addEventListener('click',e=>{const d=e.target.closest('[data-a]');if(!d)return;const a=+d.dataset.a;aidOverride=(aidOverride===a)?null:a;renderPad();});
+
+  // ======== シールちょう ========
+  function renderSheet(){
+    const sheet=SHEETS.find(s=>s.id===cur);const t=total();
+    $('status').innerHTML=`<span>称号：<b>${title(t)}</b></span><span>合計 <b class="num">${t}</b> 回</span>`+SHEETS.filter(s=>s.kind==='word').map(s=>`<span>${s.name}：<b>${TNAME[sheetLevel(s)]||'まだ'}</b></span>`).join('');
+    $('tabs').innerHTML=SHEETS.map(s=>{const lv=sheetLevel(s);const col=lv>=6?'linear-gradient(120deg,#ff6b6b,#ffd23d,#5cc85c,#3d8bff)':lv>=5?'var(--gold)':lv>=4?'var(--silver)':lv>=3?'var(--bronze)':'transparent';
+      return `<button class="tab" role="tab" type="button" data-id="${s.id}" aria-selected="${s.id===cur}">${s.name}<span class="m" style="background:${col}"></span></button>`;}).join('');
+    const done=sheet.words.filter(w=>n(sheet.id,w)>0).length;
+    $('sheetInfo').textContent=`${sheet.name}：${done}／${sheet.words.length} マス進行中。マスをタップ＝1回なぞったことにする`;
+    $('goBtn').disabled=sheet.kind!=='word';
+    const g=$('grid');g.className='grid'+(sheet.kind==='kana'?' kana':'')+(sheet.cls?' '+sheet.cls:'');
+    const traceable=w=>[...w].every(c=>!!strokesOf(c));
+    g.innerHTML=sheet.words.map(w=>{const c=n(sheet.id,w),lv=level(c),nt=nextTh(c);const prev=TH[lv],span=nt?nt-prev:1,pct=nt?Math.round((c-prev)/span*100):100;
+      const tag=(nt&&c>0&&nt-c<=2)?`<span class="next">あと${nt-c}</span>`:'';const tr=traceable(w)?'<span class="tr">なぞれる</span>':'';
+      return `<button class="cell l${lv}" type="button" data-w="${w}" aria-label="${w} ${c}回">${tag}${tr}<span class="w">${w}</span><span class="n">${c>0?c+'回':''}</span><span class="bar"><i style="width:${pct}%"></i></span></button>`;}).join('');
+  }
+  let toastT;
+  function toast(ups,w){const el2=$('toast');clearTimeout(toastT);
+    if(ups.length){const u=ups[ups.length-1];el2.className='toast'+(u.lv>=5?' gold':'');el2.innerHTML=`🚄 「${u.word}」が <b>${TNAME[u.lv]}</b> に なったよ！`;}
+    else{el2.className='toast';el2.innerHTML=`🚄 「${w}」を 1回 なぞった！`;}
+    el2.hidden=false;toastT=setTimeout(()=>{el2.hidden=true;},2200);}
+  $('tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;cur=b.dataset.id;renderSheet();});
+  $('grid').addEventListener('click',e=>{const b=e.target.closest('.cell');if(!b)return;const w=b.dataset.w;
+    const sheet=SHEETS.find(s=>s.id===cur);
+    if([...w].every(c=>!!strokesOf(c))){ // なぞれる言葉は、なぞりモックに送る
+      ensureAudio();const x=WORDS.find(y=>y.w===w)||{w,sheet:cur};startWord(x);document.querySelector('.mock').scrollIntoView({behavior:'smooth',block:'start'});return;}
+    const ups=practice(cur,w);renderSheet();const nb=$('grid').querySelector(`[data-w="${w}"]`);if(nb)nb.classList.add('bump');toast(ups,w);});
+  $('goBtn').addEventListener('click',()=>{const sheet=SHEETS.find(s=>s.id===cur);if(sheet.kind!=='word')return;const ws=pick5(sheet);let all=[];$('goBtn').disabled=true;
+    ws.forEach((w,i)=>setTimeout(()=>{all=all.concat(practice(cur,w));renderSheet();const nb=$('grid').querySelector(`[data-w="${w}"]`);if(nb)nb.classList.add('bump');if(i===ws.length-1){toast(all,w);$('goBtn').disabled=false;}},i*280));});
+  $('resetBtn').addEventListener('click',()=>{counts={};save();renderSheet();renderPad();});
+
+  startWord(WORDS[0]);renderSheet();
+})();
+</script>
+</body>
+</html>

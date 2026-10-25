@@ -83,6 +83,7 @@ a.card:active{transform:translateY(6px);box-shadow:0 2px 0 var(--ink)}
 a.card:focus-visible{outline:6px solid var(--go);outline-offset:4px}
 @keyframes wiggle{25%{rotate:-3deg}75%{rotate:3deg}}
 .pic{display:block;width:100%;height:auto;aspect-ratio:16/9;background:var(--sky);border-bottom:5px solid var(--ink)}
+img.pic{object-fit:cover}
 .pic .train{animation:rock 1.2s ease-in-out infinite}
 @keyframes rock{50%{transform:translateY(-2px)}}
 .body{padding:14px 18px 20px;display:flex;flex-direction:column;gap:8px;flex:1}
@@ -114,23 +115,20 @@ a.card:focus-visible{outline:6px solid var(--go);outline-offset:4px}
   <ul class="games">
     <li>
       <a class="card" href="shinkansen-untenshi/shinkansen.html">
-        <svg class="pic" viewBox="0 0 320 180" aria-hidden="true">
-          <rect width="320" height="120" fill="#8fd0ff"/>
-          <path d="M0 120 L60 84 L110 110 L170 72 L240 112 L320 90 L320 120Z" fill="#7cc576"/>
-          <rect y="120" width="320" height="60" fill="#9fd68f"/>
-          <rect y="150" width="320" height="6" fill="#c3ccd9"/>
-          <g fill="#8a6a4a"><rect x="10" y="156" width="10" height="6"/><rect x="60" y="156" width="10" height="6"/><rect x="110" y="156" width="10" height="6"/><rect x="160" y="156" width="10" height="6"/><rect x="210" y="156" width="10" height="6"/><rect x="260" y="156" width="10" height="6"/><rect x="310" y="156" width="10" height="6"/></g>
-          <g class="train">
-            <path d="M24 150 H244 C276 150 300 142 312 130 C296 114 268 106 236 106 H24 Z" fill="#ffffff" stroke="#14213d" stroke-width="3" stroke-linejoin="round"/>
-            <path d="M24 136 H302" stroke="#3d8bff" stroke-width="6"/>
-            <path d="M236 110 C262 110 284 116 298 126 H238 Z" fill="#14213d"/>
-            <g fill="#14213d"><rect x="40" y="116" width="22" height="12" rx="3"/><rect x="72" y="116" width="22" height="12" rx="3"/><rect x="104" y="116" width="22" height="12" rx="3"/><rect x="136" y="116" width="22" height="12" rx="3"/><rect x="168" y="116" width="22" height="12" rx="3"/><rect x="200" y="116" width="22" height="12" rx="3"/></g>
-          </g>
-          <g fill="#fff" opacity=".8"><rect x="0" y="118" width="14" height="3" rx="1.5"/><rect x="2" y="128" width="10" height="3" rx="1.5"/><rect x="0" y="140" width="16" height="3" rx="1.5"/></g>
-        </svg>
+        <img class="pic" src="ekimei-aiueo/assets/train-cover.webp" width="960" height="640" alt="" decoding="async">
         <div class="body">
           <h2 class="name">しんかんせん うんてんし</h2>
           <p class="desc">しんかんせんを うんてんしよう！ えきで のりおり、アナウンス、じこくひょうも あるよ。</p>
+          <span class="play">あそぶ</span>
+        </div>
+      </a>
+    </li>
+    <li>
+      <a class="card" href="ekimei-aiueo/ekimei.html">
+        <img class="pic" src="ekimei-aiueo/assets/kana-cover.webp" width="960" height="640" alt="" decoding="async">
+        <div class="body">
+          <h2 class="name">えきめい あいうえお</h2>
+          <p class="desc">でんしゃの なまえや えきの ことばを、ゆびで なぞろう！ ひらがなの シールを あつめよう。</p>
           <span class="play">あそぶ</span>
         </div>
       </a>
