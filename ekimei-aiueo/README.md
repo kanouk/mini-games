@@ -2,7 +2,7 @@
 
 電車の名前や駅名を指でなぞる、未就学児向けのひらがな練習アプリです。[Issue #5](https://github.com/kanouk/mini-games/issues/5) の試作（`32b31cd`）を基に作りました。
 
-`ekimei.html` をブラウザで開くだけで動きます。アプリのコードと83文字の筆順データはHTML内に含まれ、ビルドやデータ取得のAPIは不要です。書体はGoogle Fontsから読み込み、接続できない場合は端末の書体で表示します。
+`ekimei.html` をブラウザで開くだけで動きます。アプリのコード、83文字の筆順データ、挿絵はHTML内に含まれ、ビルドやデータ取得のAPIは不要です。書体はGoogle Fontsから読み込み、接続できない場合は端末の書体で表示します。
 
 ## 遊び方
 
@@ -46,5 +46,6 @@ HTTPサーバーで公開した`ekimei-aiueo/tests/browser.test.html`を開き�
 
 - 筆順：[KanjiVG](https://github.com/KanjiVG/kanjivg) © Ulrich Apel、[Creative Commons Attribution-ShareAlike 3.0 Unported（CC BY-SA 3.0）](https://creativecommons.org/licenses/by-sa/3.0/)。`data/strokes-hiragana.json`とHTML内の筆順データは、KanjiVGからU+3041〜U+3093のパスを抽出した派生物で、同じライセンスです。元の字形は変えていません。
 - 字体：[Klee One](https://fonts.google.com/specimen/Klee+One)、[M PLUS Rounded 1c](https://fonts.google.com/specimen/M+PLUS+Rounded+1c)（Google Fonts）。
+- 挿絵：内蔵imagegenツールで生成した水彩・ガッシュ調の4画像です。[画像と生成プロンプト](assets/README.md)を保存しています。新幹線・駅・文字のシールちょうに使い、背景透過の車両はタイトル・指先・お手本・完成画面で共用します。
 - 駅名：同リポジトリの`shinkansen-untenshi/shinkansen.html`の東海道新幹線データと一致させています。
 - `prototype/`に原型を残しています。筆順データの再取得は`node ekimei-aiueo/tools/fetch-kanjivg.js`です。再取得した場合はHTMLの`STROKES`にも反映し、テストしてください。

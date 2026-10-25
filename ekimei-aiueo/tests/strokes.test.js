@@ -81,6 +81,14 @@ check('station readings match driving game',()=>{
 check('home card is before coming soon',()=>{const home=fs.readFileSync(path.join(root,'../index.html'),'utf8');assert.ok(home.indexOf('href="ekimei-aiueo/ekimei.html"')>0);assert.ok(home.indexOf('href="ekimei-aiueo/ekimei.html"')<home.indexOf('<div class="card soon">'));});
 check('no runtime stroke fetch or external application script',()=>{assert.ok(!/<script\s+[^>]*src=/.test(html));assert.ok(!/\bfetch\(/.test(js));});
 
+const artwork=JSON.parse(js.match(/^const ART=(\{[^\n]+\});$/m)[1]);
+for(const [id,file]of Object.entries({names:'train-cover',tokaido:'station-cover',hira:'kana-cover',train:'train-character'}))check('embedded artwork matches '+file,()=>{
+  const bytes=fs.readFileSync(path.join(root,'assets',file+'.webp'));
+  assert.equal(bytes.toString('ascii',8,12),'WEBP');
+  assert.deepEqual(Buffer.from(artwork[id].split(',')[1],'base64'),bytes);
+  if(id==='train'){assert.equal(bytes.toString('ascii',12,16),'VP8X');assert.ok(bytes[20]&0x10,'Train alpha channel is preserved');}
+});
+
 const frequency=Object.fromEntries(SHEETS[2].words.map(ch=>[ch,0]));
 for(const sheet of SHEETS.slice(0,2))for(const w of sheet.words)for(const ch of w){const base=({が:'か',ぎ:'き',ぐ:'く',げ:'け',ご:'こ',ざ:'さ',じ:'し',ず:'す',ぜ:'せ',ぞ:'そ',だ:'た',ぢ:'ち',づ:'つ',で:'て',ど:'と',ば:'は',び:'ひ',ぶ:'ふ',べ:'へ',ぼ:'ほ',ぱ:'は',ぴ:'ひ',ぷ:'ふ',ぺ:'へ',ぽ:'ほ',ょ:'よ',ゃ:'や',ゅ:'ゆ',っ:'つ'})[ch]||ch;if(base in frequency)frequency[base]++;}
 console.log('出題語で登場3回未満の清音（あいうえおシートで単独練習できます）：'+Object.entries(frequency).filter(([,c])=>c<3).map(([ch,c])=>ch+'('+c+')').join('、'));
