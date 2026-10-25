@@ -7,7 +7,7 @@ const js = html.match(/<script>([\s\S]*)<\/script>/)[1];
 new Function(js); // ページ全体の構文も確認する。
 const source = js.slice(js.indexOf('/* ---------- まち'), js.indexOf('/* ---------- 保存'));
 const g = new Function(`${source}
-  return {COLS,ROWS,NODES,nid,neighbors,ekey,EDGES,dists,nextStep,connected,pickBlocks,TOWN,corners,BASE_NODE,farCorner,pickDir,CARS,EVENTS,planRound};`)();
+  return {COLS,ROWS,NODES,nid,neighbors,ekey,EDGES,dists,nextStep,connected,pickBlocks,TOWN,corners,BASE_NODE,farCorner,pickDir,CARS,EVENTS,planRound,projectToRoad,pickEscapeCount};`)();
 function seeded(seed) { let x = seed; return () => { x = (x * 1103515245 + 12345) % 2147483648; return x / 2147483648; }; }
 
 // こうさてんは 5×4、みちは 31 本。
@@ -47,6 +47,20 @@ for (let seed = 1; seed <= 300; seed++) {
   assert.deepEqual(g.pickDir(from, -1, 0, pos, blocked), { n: g.nid(1, 1), blocked: true });
 }
 
+// ドラッグで道を外れても区間上にとどまり、両端を越えない。
+{
+  assert.deepEqual(g.projectToRoad({x:75,y:90},{x:0,y:0},{x:200,y:0}),{t:.375,x:75,y:0});
+  assert.deepEqual(g.projectToRoad({x:-20,y:90},{x:0,y:0},{x:200,y:0}),{t:0,x:0,y:0});
+  assert.deepEqual(g.projectToRoad({x:900,y:90},{x:0,y:0},{x:200,y:0}),{t:1,x:200,y:0});
+  assert.deepEqual(g.projectToRoad({x:-400,y:80},{x:100,y:0},{x:100,y:160}),{t:.5,x:100,y:80});
+  assert.deepEqual(g.projectToRoad({x:10,y:10},{x:1,y:2},{x:1,y:2}),{t:0,x:1,y:2});
+}
+// 逃走回数は事件の最初に決まり、普段1回、ときどき2回、まれに3回。
+{
+  const frequency={1:0,2:0,3:0};for(let i=0;i<1000;i++)frequency[g.pickEscapeCount(()=>(i+.5)/1000)]++;
+  assert.deepEqual(frequency,{1:650,2:250,3:100});
+}
+
 // じけんと くるまの くみあわせ：どの じけんも くるまが いて、おきる ばしょが ある。
 {
   const kinds = new Set(g.TOWN);
@@ -67,6 +81,7 @@ for (let seed = 1; seed <= 200; seed++) {
   for (let round = 0; round < 10; round++) {
     const r = g.planRound(round, last, rand);
     assert.notEqual(r.ev.id, last);
+    if(r.ev.id==='thief')assert.ok([1,2,3].includes(r.escapeLimit));else assert.equal(r.escapeLimit,0);
     if (round < 3) {
       assert.ok(['fire', 'thief', 'hurt'].includes(r.ev.id));
       assert.deepEqual(r.cars.map(c => c.id), ['fire', 'police', 'amb']);
@@ -75,7 +90,7 @@ for (let seed = 1; seed <= 200; seed++) {
     assert.ok(r.ev.kinds.includes(g.TOWN[r.block]));
     assert.ok(g.corners(r.block).includes(r.dest));
     assert.ok(g.dists(r.start, r.blocked)[r.dest] >= 2);
-    assert.equal(r.blocked.size, round < 2 ? 0 : round < 6 ? 1 : 2);
+    assert.equal(r.blocked.size, round < 2 ? 0 : round < 4 ? 1 : round < 7 ? 2 : 3);
     assert.ok(g.connected(r.blocked));
     assert.equal(r.stars.size, 3);
     r.stars.forEach(n => { assert.notEqual(n, r.dest); assert.ok(!Object.values(g.BASE_NODE).includes(n)); });

@@ -175,6 +175,9 @@ button:focus-visible{outline:5px solid var(--go);outline-offset:3px}
 .title button:focus-visible{outline:5px solid #fff;outline-offset:4px}
 
 
+#Lcar .draggable{cursor:grab}
+.stage.dragging,#map .draggable:active,.stage.dragging #map{cursor:grabbing}
+#map image{-webkit-user-drag:none}
 /* 小さい画面でも輪郭が読める、共通のスプライトと動き */
 :root{--grass:#a8d990;--grass2:#669e6a;--road:#8a9ca5}
 .stage{background:radial-gradient(ellipse at 50% 40%,#c7e6a9,#98cd83)}
@@ -216,7 +219,7 @@ button:focus-visible{outline:5px solid var(--go);outline-offset:3px}
 </svg>
 <div class="app">
   <div class="stage" id="stage">
-    <svg id="map" aria-label="まちの ちず。いきたい ほうを おすと くるまが すすみます"></svg>
+    <svg id="map" aria-label="まちの ちず。くるまを ドラッグするか、いきたい ほうを おすと すすみます"></svg>
     <div class="fx" id="fx"></div>
   </div>
   <div class="hud">
@@ -283,6 +286,13 @@ function pickDir(from,vx,vy,pos,blocked){const p=pos(from),vl=Math.hypot(vx,vy);
   neighbors(from).forEach(m=>{const q=pos(m),dx=q.x-p.x,dy=q.y-p.y,s=(dx*vx+dy*vy)/(Math.hypot(dx,dy)*vl);if(s>bs){bs=s;best=m;}});
   return best===null?null:{n:best,blocked:blocked.has(ekey(from,best))};}
 
+// 指が道からずれても、車は選んだ道路区間の上だけを動く。
+function projectToRoad(point,a,b){const dx=b.x-a.x,dy=b.y-a.y,len2=dx*dx+dy*dy;
+  const t=len2?Math.max(0,Math.min(1,((point.x-a.x)*dx+(point.y-a.y)*dy)/len2)):0;
+  return {t,x:a.x+dx*t,y:a.y+dy*t};}
+// 普段は1回。25%で2回、10%で3回。事件ごとに最初に決める。
+function pickEscapeCount(rand){const r=rand();return r<.10?3:r<.35?2:1;}
+
 /* ---------- くるま と じけん ---------- */
 const CARS=[
   {id:'fire',name:'しょうぼうしゃ',base:'fire',can:'ひを けすのが とくいだよ'},
@@ -306,11 +316,11 @@ function planRound(round,lastId,rand){
   const blocks=TOWN.map((k,i)=>i).filter(i=>ev.kinds.includes(TOWN[i]));
   const block=blocks[Math.floor(rand()*blocks.length)];
   const dest=farCorner(block,start,new Set(),rand);
-  const blocked=pickBlocks(round<2?0:round<6?1:2,rand,[start,dest]);
+  const blocked=pickBlocks(round<2?0:round<4?1:round<7?2:3,rand,[start,dest]);
   const bases=Object.values(BASE_NODE),free=[];
   for(let n=0;n<NODES;n++)if(n!==dest&&!bases.includes(n))free.push(n);
   for(let i=free.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[free[i],free[j]]=[free[j],free[i]];}
-  return{ev,car,block,start,dest,blocked,stars:new Set(free.slice(0,3)),cars:round<3?CARS.slice(0,3):CARS};
+  return{ev,car,block,start,dest,blocked,escapeLimit:ev.id==='thief'?pickEscapeCount(rand):0,stars:new Set(free.slice(0,3)),cars:round<3?CARS.slice(0,3):CARS};
 }
 
 /* ---------- 保存 ---------- */
@@ -408,16 +418,17 @@ function toSvg(e){const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const
 function el(tag,attrs,html){const x=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const k in attrs)x.setAttribute(k,attrs[k]);if(html)x.innerHTML=html;return x;}
 
 /* ---------- ゲームの じょうたい ---------- */
-let phase='title',round=0,lastId=null,R=null,timer=0,idle=0,hinted=false,wrongs=0,hits=0,leg='go',escaped=false,firstRoute=true;
+let phase='title',round=0,lastId=null,R=null,timer=0,idle=0,hinted=false,wrongs=0,hits=0,leg='go',escapes=0,firstRoute=true;
+let drag=null;
 const car={n:0,x:0,y:0,face:1,mv:null,steps:0};
 let L={};/* レイヤー */
 const pending=new Set();
 function later(fn,ms){const id=setTimeout(()=>{pending.delete(id);fn();},ms);pending.add(id);return id;}
-function cancelScene(){pending.forEach(clearTimeout);pending.clear();car.mv=null;tweens.length=0;parts.length=0;}
+function cancelScene(){finishDrag(true,true);pending.forEach(clearTimeout);pending.clear();car.mv=null;tweens.length=0;parts.length=0;}
 
 
 function render(){
-  const r=stage.getBoundingClientRect();PORT=r.height>r.width*1.05;W=PORT?710:1000;H=PORT?1080:660;
+  finishDrag(true,true);const r=stage.getBoundingClientRect();PORT=r.height>r.width*1.05;W=PORT?710:1000;H=PORT?1080:660;
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.setAttribute('preserveAspectRatio','xMidYMid meet');
   let s=`<defs><pattern id="stripe" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="12" fill="#14213d"/><rect x="6" width="6" height="12" fill="#ffcf33"/></pattern></defs>`;
   s+=`<rect x="-500" y="-500" width="${W+1000}" height="${H+1000}" fill="#a8d990"/>`;
@@ -453,7 +464,7 @@ function drawMark(){L.mark.innerHTML='';if(!R||phase==='done')return;const p=P(R
 let actorEl=null;
 function actorPos(){if(R.actorAt!=null){const p=P(R.actorAt);return{x:p.x+26,y:p.y-30};}
   const c=blockCenter(R.block),d=P(R.dest);return{x:c.x+(d.x-c.x)*0.22,y:c.y+(d.y-c.y)*0.22};}
-function drawActor(){L.act.innerHTML='';actorEl=null;if(!R||R.actorGone)return;const a=actorPos();
+function drawActor(){if(actorEl)clearTween(actorEl);L.act.innerHTML='';actorEl=null;if(!R||R.actorGone)return;const a=actorPos();
   actorEl=el('g',{class:'art',transform:`translate(${a.x} ${a.y}) scale(${ART_S})`},ACTOR[R.ev.id]());
   if(R.ev.id==='fire')actorEl.querySelector('.flames').setAttribute('transform',`scale(${Math.max(0,1-hits/R.ev.need)})`);
   if(R.ev.id==='trash'||R.ev.id==='rock'||R.ev.id==='cat')[...actorEl.querySelectorAll('.pt')].slice(0,R.gone||0).forEach(x=>x.remove());
@@ -466,8 +477,8 @@ function drawCue(){L.cue.innerHTML='';if(phase!=='action'||!R)return;
 let carEl=null;
 function drawCar(){L.car.innerHTML='';carEl=null;if(!R||!R.out)return;
   carEl=el('g',{},`<ellipse cx="62" cy="66" rx="48" ry="7" fill="#263947" opacity=".15"/><g class="suspension"><g class="vehicle">${CAR_ART[R.car.id]}${BEACON[R.car.id]?`<ellipse class="beacon" cx="${BEACON[R.car.id][0]}" cy="${BEACON[R.car.id][1]}" rx="13" ry="8" fill="#ff716b"/>`:''}</g></g>`);L.car.appendChild(carEl);placeCar();}
-function placeCar(){if(!carEl)return;carEl.setAttribute('transform',`translate(${car.x} ${car.y}) scale(${car.face*CAR_S} ${CAR_S}) translate(-62 -59)`);carEl.classList.toggle('moving',!!car.mv);carEl.classList.toggle('working',phase==='action');}
-function drawArrows(){L.arrow.innerHTML='';if(phase!=='route'||car.mv)return;
+function placeCar(){if(!carEl)return;carEl.setAttribute('transform',`translate(${car.x} ${car.y}) scale(${car.face*CAR_S} ${CAR_S}) translate(-62 -59)`);carEl.classList.toggle('moving',!!car.mv||!!drag?.edge);carEl.classList.toggle('draggable',phase==='route');carEl.classList.toggle('working',phase==='action');}
+function drawArrows(){L.arrow.innerHTML='';if(phase!=='route'||car.mv||drag?.edge)return;
   const p=P(car.n),hint=hinted?nextStep(car.n,R.dest,R.blocked):-1;
   neighbors(car.n).forEach(m=>{if(R.blocked.has(ekey(car.n,m)))return;const q=P(m),a=Math.atan2(q.y-p.y,q.x-p.x),deg=a*180/Math.PI;
     const x=p.x+Math.cos(a)*74,y=p.y+Math.sin(a)*74,h=m===hint;
@@ -476,7 +487,8 @@ function drawArrows(){L.arrow.innerHTML='';if(phase!=='route'||car.mv)return;
 
 /* ---------- うごき ---------- */
 const tweens=[],parts=[];
-function tween(node,a,b,dur,done){tweens.push({node,a,b,dur,t:0,done});}
+function clearTween(node){for(let i=tweens.length-1;i>=0;i--)if(tweens[i].node===node)tweens.splice(i,1);}
+function tween(node,a,b,dur,done){clearTween(node);tweens.push({node,a,b,dur,t:0,done});}
 function setT(node,s){node.setAttribute('transform',`translate(${s.x} ${s.y}) scale(${s.s})`);if(s.o!=null)node.setAttribute('opacity',s.o);}
 function sparkle(x,y,color,n,speed){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,v=(speed||160)*(0.4+Math.random()*0.8);
   const c=el('circle',{r:4+Math.random()*5,fill:color||'#ffcf33',cx:x,cy:y});L.fx.appendChild(c);parts.push({c,x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-60,life:0,max:0.7+Math.random()*0.4,g:220});}}
@@ -499,12 +511,12 @@ function arrive(n){car.n=n;car.mv=null;placeCar();
   drawArrows();}
 function reachDest(){
   if(leg==='hospital'){complete();return;}
-  if(R.ev.id==='thief'&&!escaped){/* どろぼうは いちど だけ となりの こうさてんへ にげる */
-    escaped=true;const prev=car.lastFrom,opts=neighbors(R.dest).filter(m=>!R.blocked.has(ekey(R.dest,m))&&m!==prev);
+  if(R.ev.id==='thief'&&escapes<R.escapeLimit){/* 決めた回数だけ、通れる隣の交差点へ逃げる */
+    escapes++;const prev=car.lastFrom,opts=neighbors(R.dest).filter(m=>!R.blocked.has(ekey(R.dest,m))&&m!==prev);
     const pool=opts.length?opts:neighbors(R.dest).filter(m=>!R.blocked.has(ekey(R.dest,m))),to=pool[Math.floor(Math.random()*pool.length)];
-    const from=actorPos();R.dest=to;R.actorAt=to;const goal=actorPos();
+    const matrix=actorEl?.transform.baseVal.consolidate()?.matrix;const from=matrix?{x:matrix.e,y:matrix.f}:actorPos();R.dest=to;R.actorAt=to;const goal=actorPos();
     if(actorEl){const s=ART_S;tween(actorEl,{x:from.x,y:from.y,s},{x:goal.x,y:goal.y,s},0.7,()=>{drawActor();});}
-    drawMark();say('あっ、にげた！ ひかっている ところまで おいかけよう！');play('bump');drawArrows();return;}
+    drawMark();say((escapes===1?'あっ、にげた！':'あっ、また にげた！')+' ひかっている ところまで おいかけよう！');play('bump');drawArrows();return;}
   phase='action';hits=0;R.gone=0;drawActor();drawArrows();drawCue();placeCar();say(R.ev.act);idle=0;
 }
 function hit(){
@@ -551,7 +563,7 @@ function newRound(){
   cancelScene();$('fx').innerHTML='';
   R=planRound(round,lastId,Math.random);lastId=R.ev.id;round++;
   R.out=false;R.gone=0;R.actorGone=false;R.actorAt=null;
-  phase='choose';leg='go';escaped=false;hits=0;wrongs=0;idle=0;hinted=false;car.steps=0;car.mv=null;
+  phase='choose';leg='go';escapes=0;hits=0;wrongs=0;idle=0;hinted=false;car.steps=0;car.mv=null;
   L.fx.innerHTML='';drawRound();
   bar.innerHTML='';bar.classList.remove('off');bar.classList.toggle('n5',R.cars.length>3);
   R.cars.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='carbtn';b.dataset.id=c.id;b.setAttribute('aria-label',c.name);
@@ -568,25 +580,69 @@ function choose(id,b){
   bar.querySelectorAll('.carbtn').forEach(x=>{x.classList.remove('hint');x.classList.toggle('sel',x===b);});bar.classList.add('off');
   play('yes');phase='route';R.out=true;car.n=R.start;car.lastFrom=-1;const p=P(car.n);car.x=p.x;car.y=p.y;car.face=P(R.dest).x<p.x?-1:1;
   drawActor();drawCar();sparkle(p.x,p.y,'#fff',14);later(()=>play('siren',R.car.id,car.steps++),350);
-  say(`${R.car.name}、しゅつどう！ ひかっている ところまで、みちを えらんでね。`+(firstRoute?' いきたい ほうを タップしてね。':''));firstRoute=false;
+  say(`${R.car.name}、しゅつどう！ ひかっている ところまで、みちを えらんでね。`+(firstRoute?' くるまを つかんで うごかすか、いきたい ほうを タップしてね。':''));firstRoute=false;
   drawArrows();
 }
 
 /* ---------- そうさ ---------- */
 function tryDir(vx,vy){
-  if(phase!=='route'||car.mv)return;
+  if(phase!=='route'||car.mv||drag)return;
   const d=pickDir(car.n,vx,vy,P,R.blocked);if(!d)return;
-  if(d.blocked){const g=L.block.querySelector(`[data-e="${ekey(car.n,d.n)}"] .art`);if(g){g.classList.remove('wiggle');g.getBoundingClientRect();g.classList.add('wiggle');}
-    play('bump');say('こうじちゅうだよ。 べつの みちに しよう。',true);return;}
+  if(d.blocked){blockedFeedback(d.n);return;}
   car.lastFrom=car.n;move(d.n);
 }
+function blockedFeedback(n){const g=L.block.querySelector(`[data-e="${ekey(car.n,n)}"] .art`);
+  if(g){g.classList.remove('wiggle');g.getBoundingClientRect();g.classList.add('wiggle');}
+  play('bump');say('こうじちゅうだよ。 べつの みちに しよう。',true);}
+function beginDrag(e){const p=toSvg(e);drag={id:e.pointerId,offset:{x:p.x-car.x,y:p.y-car.y},edge:null,blocked:null};
+  idle=0;stage.classList.add('dragging');try{stage.setPointerCapture(e.pointerId);}catch(_){}e.preventDefault();}
+function updateDrag(e){if(!drag||e.pointerId!==drag.id||phase!=='route')return;
+  e.preventDefault();idle=0;const p=toSvg(e),target={x:p.x-drag.offset.x,y:p.y-drag.offset.y};
+  // 大きなpointermoveでも、隣り合う交差点を順に通る。建物を横切らない。
+  for(let i=0;i<NODES&&drag&&phase==='route';i++){
+    if(!drag.edge){const a=P(car.n),vx=target.x-a.x,vy=target.y-a.y;if(Math.hypot(vx,vy)<12)break;
+      const d=pickDir(car.n,vx,vy,P,R.blocked);if(!d)break;
+      if(d.blocked){const key=ekey(car.n,d.n);if(drag.blocked!==key){drag.blocked=key;blockedFeedback(d.n);}break;}
+      drag.blocked=null;drag.edge={from:car.n,to:d.n,a,b:P(d.n),t:0};car.lastFrom=car.n;
+      const dx=drag.edge.b.x-a.x;if(dx)car.face=dx>0?1:-1;
+      play('siren',R.car.id,car.steps++);drawArrows();
+    }
+    const edge=drag.edge,q=projectToRoad(target,edge.a,edge.b),length=Math.hypot(edge.b.x-edge.a.x,edge.b.y-edge.a.y);
+    const turn=pickDir(edge.from,target.x-edge.a.x,target.y-edge.a.y,P,R.blocked);
+    if(q.t*length<20&&turn&&turn.n!==edge.to){car.x=edge.a.x;car.y=edge.a.y;drag.edge=null;continue;}
+    const dx=q.x-car.x;if(Math.abs(dx)>.01)car.face=dx>0?1:-1;
+    edge.t=q.t;car.x=q.x;car.y=q.y;placeCar();
+    if(q.t<=0){drag.edge=null;drawArrows();break;}
+    if(q.t<.92)break;
+    car.x=edge.b.x;car.y=edge.b.y;drag.edge=null;arrive(edge.to);
+    if(phase!=='route'){finishDrag(true,true);return;}
+    if(q.t<1)break;
+  }
+}
+function finishDrag(cancelled=false,instant=false){if(!drag)return;const held=drag;drag=null;stage.classList.remove('dragging');
+  try{if(stage.hasPointerCapture(held.id))stage.releasePointerCapture(held.id);}catch(_){}
+  if(held.edge){const edge=held.edge,n=cancelled||edge.t<.5?edge.from:edge.to,p=P(n);
+    if(Math.abs(p.x-car.x)>.01)car.face=p.x>car.x?1:-1;
+    if(instant){car.x=p.x;car.y=p.y;}else car.mv={a:{x:car.x,y:car.y},b:p,t:0,dur:.18,n};}
+  placeCar();drawArrows();}
 stage.addEventListener('pointerdown',e=>{
-  if(phase==='title'||!$('book').hidden)return;ensureAudio();
-  if(phase==='route'){const p=toSvg(e),c=P(car.n);if(Math.hypot(p.x-c.x,p.y-c.y)<28)return;tryDir(p.x-c.x,p.y-c.y);}
-  else if(phase==='action')hit();
+  if(!e.isPrimary||e.button!==0||drag||phase==='title'||!$('book').hidden)return;ensureAudio();
+  if(phase==='route'){
+    if(car.mv)return;
+    const bounds=carEl?.getBoundingClientRect();
+    if(bounds&&!L.arrow.contains(e.target)&&e.clientX>=bounds.left-12&&e.clientX<=bounds.right+12&&e.clientY>=bounds.top-12&&e.clientY<=bounds.bottom+12){beginDrag(e);return;}
+    const p=toSvg(e),c=P(car.n);if(Math.hypot(p.x-c.x,p.y-c.y)<28)return;tryDir(p.x-c.x,p.y-c.y);
+  }else if(phase==='action')hit();
 });
+stage.addEventListener('pointermove',updateDrag);
+stage.addEventListener('pointerup',e=>{if(e.pointerId!==drag?.id)return;updateDrag(e);finishDrag();});
+stage.addEventListener('pointercancel',e=>{if(e.pointerId===drag?.id)finishDrag(true);});
+stage.addEventListener('lostpointercapture',e=>{if(e.pointerId===drag?.id)finishDrag(true);});
+stage.addEventListener('dragstart',e=>e.preventDefault());
+window.addEventListener('blur',()=>finishDrag(true,true));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)finishDrag(true,true);});
 window.addEventListener('keydown',e=>{
-  if(!$('title').hidden||!$('book').hidden)return;
+  if(!$('title').hidden||!$('book').hidden||drag)return;
   const k={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
   if(k&&phase==='route'){e.preventDefault();tryDir(k[0],k[1]);}
   else if((e.key===' '||e.key==='Enter')&&phase==='action'){e.preventDefault();hit();}
@@ -601,15 +657,16 @@ sndBtn.addEventListener('click',()=>{soundOn=!soundOn;ensureAudio();applySound()
 let last=0,trailClock=0;
 function frame(now){
   const dt=last?Math.min(0.05,(now-last)/1000):0;last=now;
-  if(car.mv){trailClock+=dt;if(!reducedMotion&&trailClock>.10){trailClock=0;sparkle(car.x-car.face*42,car.y+6,'#e8e7cc',1,25);}
-    const m=car.mv;m.t+=dt;const k=Math.min(1,m.t/m.dur),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+  if(car.mv||drag?.edge){trailClock+=dt;if(!reducedMotion&&trailClock>.10){trailClock=0;sparkle(car.x-car.face*42,car.y+6,'#e8e7cc',1,25);}
+  }
+  if(car.mv){const m=car.mv;m.t+=dt;const k=Math.min(1,m.t/m.dur),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
     car.x=m.a.x+(m.b.x-m.a.x)*e;car.y=m.a.y+(m.b.y-m.a.y)*e;placeCar();if(k>=1)arrive(m.n);}
   for(let i=tweens.length-1;i>=0;i--){const w=tweens[i];w.t+=dt;const k=Math.min(1,w.t/w.dur),e=1-Math.pow(1-k,3),s={};
     for(const key in w.a)s[key]=w.a[key]+(w.b[key]-w.a[key])*e;setT(w.node,s);if(k>=1){tweens.splice(i,1);if(w.done)w.done();}}
   for(let i=parts.length-1;i>=0;i--){const q=parts[i];q.life+=dt;if(q.life<0)continue;q.vy+=q.g*dt;q.x+=q.vx*dt;q.y+=q.vy*dt;
     q.c.setAttribute('cx',q.x);q.c.setAttribute('cy',q.y);q.c.setAttribute('opacity',Math.max(0,1-q.life/q.max));if(q.life>=q.max){q.c.remove();parts.splice(i,1);}}
   /* しばらく なにも しないと、そっと ヒントを だす */
-  if(phase==='route'&&!car.mv||phase==='choose'||phase==='action'){idle+=dt;
+  if(phase==='route'&&!car.mv&&!drag||phase==='choose'||phase==='action'){idle+=dt;
     if(idle>8){idle=0;
       if(phase==='route'&&!hinted){hinted=true;drawArrows();say('きいろく ひかっている やじるしの ほうへ いってみよう！',true);}
       else if(phase==='choose'){const b=bar.querySelector(`[data-id="${R.car.id}"]`);if(b&&!b.classList.contains('hint')){b.classList.add('hint');say(R.ev.call+' '+ASK,true);}}
@@ -634,7 +691,7 @@ $('tBook').addEventListener('click',()=>{ensureAudio();openBook();});
 $('homeBtn').addEventListener('click',showTitle);
 /* がめんの おおきさが かわったら（たて・よこ を ふくむ）、ちずを かきなおす */
 let rzT=0;
-function onResize(){clearTimeout(rzT);rzT=setTimeout(()=>{const was=car.mv;if(was)car.mv=null;render();
+function onResize(){clearTimeout(rzT);rzT=setTimeout(()=>{finishDrag(true,true);const was=car.mv;if(was)car.mv=null;render();
   if(R&&R.out){const p=P(was?was.n:car.n);car.x=p.x;car.y=p.y;placeCar();if(was)arrive(was.n);}},120);}
 if(window.ResizeObserver)new ResizeObserver(onResize).observe(stage);else window.addEventListener('resize',onResize);
 
