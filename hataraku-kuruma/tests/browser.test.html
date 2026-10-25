@@ -11,8 +11,8 @@ async function mount(width,height){
   let source=await(await fetch('../kuruma.html')).text();
   source=source.replaceAll("'hkc'","'hkc-qa-"+Date.now()+"'");
   source=source.replace('dur:0.6,n:to','dur:0.04,n:to');
-  source=source.replace('start();\n})();',`window.qa={get state(){return {phase,R,car,hits,leg,stickers,parts,tweens,PORT};},P,nextStep,blockCenter,nodes:NODES,blocks:TOWN.length,sprites:SPRITES,
-    event(id){for(let i=0;i<100;i++){round=10;newRound();if(R.ev.id===id)return;}throw Error('Event unavailable');}};\nstart();\n})();`);
+  source=source.replace('start();\n})();',`window.qa={get state(){return {phase,R,car,hits,leg,stickers,parts,tweens,PORT,drag,escapes};},P,nextStep,neighbors,ekey,drawRound,blockCenter,nodes:NODES,blocks:TOWN.length,sprites:SPRITES,
+    event(id,limit){for(let i=0;i<100;i++){round=10;newRound();if(R.ev.id===id){if(limit)R.escapeLimit=limit;return;}}throw Error('Event unavailable');},scene(n,dest,blocked=[]){finishDrag(true,true);phase='route';R.dest=dest;R.blocked=new Set(blocked);car.n=n;car.mv=null;const p=P(n);car.x=p.x;car.y=p.y;drawRound();}};\nstart();\n})();`);
   // Relative assets/icons resolve normally from this test fixture; sprites are embedded.
   const f=document.createElement('iframe');f.style.width=width+'px';f.style.height=height+'px';
   frames.replaceChildren(f);f.srcdoc=source;await new Promise(r=>f.onload=r);
@@ -39,10 +39,49 @@ async function drive(w){let guard=0;
   }
   check(guard<60,'route finishes including thief chase');
 }
+function pointer(w,d,type,p,id=1,primary=true,target=null){const map=d.querySelector('#map'),q=map.createSVGPoint();q.x=p.x;q.y=p.y;const c=q.matrixTransform(map.getScreenCTM());
+  (target||d.querySelector('#stage')).dispatchEvent(new w.PointerEvent(type,{pointerId:id,pointerType:'touch',isPrimary:primary,button:0,buttons:type==='pointerup'?0:1,bubbles:true,cancelable:true,clientX:c.x,clientY:c.y}));}
+function grab(w,d){const c=w.qa.state.car;pointer(w,d,'pointerdown',{x:c.x,y:c.y-24});check(!!w.qa.state.drag,'car can be grabbed');}
+function pointAt(w,d,p,type='pointermove'){pointer(w,d,type,{x:p.x,y:p.y-24});}
+function dragDrive(w,d){const hitsBefore=w.qa.state.hits;grab(w,d);let guard=0;
+  while(w.qa.state.phase==='route'&&guard++<60){const {R,car}=w.qa.state,n=w.qa.nextStep(car.n,R.dest,R.blocked);if(n<0)throw Error('Unreachable drag destination');pointAt(w,d,w.qa.P(n));}
+  const c=w.qa.state.car;pointAt(w,d,{x:c.x,y:c.y},'pointerup');
+  check(guard<60&&w.qa.state.phase!=='route','drag route finishes including chase');
+  check(!w.qa.state.drag&&w.qa.state.hits===hitsBefore,'arrival releases drag without a rescue tap');
+}
+async function checkDrag(w,d,f){
+  w.qa.event('fire');d.querySelector('.carbtn[data-id="fire"]').click();await sleep(160);
+  const start=6,to=5,a=w.qa.P(start),b=w.qa.P(to),mid=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});
+  w.qa.scene(start,19);grab(w,d);const off=mid(.35);if(a.x===b.x)off.x+=25;else off.y+=25;pointAt(w,d,off);
+  const p=mid(.35);check(Math.hypot(w.qa.state.car.x-p.x,w.qa.state.car.y-p.y)<.1,'drag follows finger along road, not across buildings');
+  pointer(w,d,'pointermove',{x:900,y:900},2,false);check(Math.hypot(w.qa.state.car.x-p.x,w.qa.state.car.y-p.y)<.1,'second finger cannot move held car');
+  pointAt(w,d,mid(.2));if(a.x!==b.x)check(w.qa.state.car.face===Math.sign(a.x-b.x),'car turns when dragging backwards');
+  pointer(w,d,'pointercancel',off);await until(()=>!w.qa.state.car.mv,'cancel snap');
+  check(!w.qa.state.drag&&w.qa.state.car.n===start&&w.qa.state.car.x===a.x&&w.qa.state.car.y===a.y,'cancel returns safely to last junction');
+  const starsBefore=+d.querySelector('#starNum').textContent;w.qa.state.R.stars=new Set([to]);w.qa.drawRound();
+  grab(w,d);pointAt(w,d,mid(.65));pointAt(w,d,mid(.65),'pointerup');await until(()=>!w.qa.state.car.mv,'release snap');
+  check(w.qa.state.car.n===to,'release after halfway reaches next junction');
+  check(+d.querySelector('#starNum').textContent===starsBefore+1,'drag collects a star exactly once');
+  w.qa.scene(start,19);grab(w,d);pointAt(w,d,mid(.3));pointAt(w,d,mid(.3),'pointerup');await until(()=>!w.qa.state.car.mv,'near snap');
+  check(w.qa.state.car.n===start,'release before halfway returns to previous junction');
+  w.qa.scene(start,19,[w.qa.ekey(start,to)]);grab(w,d);pointAt(w,d,b);pointAt(w,d,b,'pointerup');
+  check(w.qa.state.car.n===start&&w.qa.state.car.x===a.x&&w.qa.state.car.y===a.y,'drag cannot cross blocked road');
+  w.qa.scene(start,19);grab(w,d);pointAt(w,d,mid(.4));pointAt(w,d,a);pointAt(w,d,w.qa.P(11));pointAt(w,d,w.qa.P(16));pointAt(w,d,w.qa.P(16),'pointerup');
+  check(w.qa.state.car.n===16,'one held gesture can reverse and continue through junctions');
+  w.qa.scene(start,19);const dx=b.x-a.x,dy=b.y-a.y,length=Math.hypot(dx,dy),arrow={x:a.x+dx/length*74,y:a.y+dy/length*74};
+  pointer(w,d,'pointerdown',arrow,1,true,d.querySelector('#Larrow > g path'));await until(()=>!w.qa.state.car.mv,'arrow tap');
+  check(!w.qa.state.drag&&w.qa.state.car.n===to,'arrow tap still works beside generous car hit target');
+  w.qa.scene(start,19);grab(w,d);pointAt(w,d,mid(.4));f.style.width='420px';await sleep(200);
+  check(!w.qa.state.drag&&!w.qa.state.car.mv&&w.qa.state.car.n===start,'resize cancels partial drag');
+  const resized=w.qa.P(start);check(w.qa.state.car.x===resized.x&&w.qa.state.car.y===resized.y,'resize leaves car on road');
+  grab(w,d);pointAt(w,d,mid(.4));d.querySelector('#homeBtn').click();await sleep(250);
+  check(w.qa.state.phase==='title'&&!w.qa.state.drag&&!w.qa.state.car.mv,'home ends captured drag');
+  d.querySelector('#tStart').click();
+}
 document.querySelector('#run').onclick=async()=>{
   result.textContent='Running';passed=0;
   try{
-    let {w,d,errors}=await mount(400,844);
+    let {w,d,f,errors}=await mount(400,844);
     check(w.qa.state.PORT,'portrait map');
     checkRoad(w,d,'400');
     check(d.querySelector('#bar').getBoundingClientRect().bottom<=844,'controls fit portrait');
@@ -50,20 +89,25 @@ document.querySelector('#run').onclick=async()=>{
     await Promise.all(images.map(el=>new Promise((resolve,reject)=>{const im=new w.Image();im.onload=resolve;im.onerror=()=>reject(Error('Sprite decode'));im.src=el;})));
     check(images.length===19,'all 19 embedded sprites decode');
     for(const id of ['fire','cat','thief','hurt','trash','rock']){
-      w.qa.event(id);const correct=w.qa.state.R.car.id;
+      w.qa.event(id,id==='thief'?3:undefined);const correct=w.qa.state.R.car.id;
       const wrong=[...d.querySelectorAll('.carbtn')].find(b=>b.dataset.id!==correct);
       wrong.click();wrong.click();check(d.querySelector('.carbtn.hint')?.dataset.id===correct,id+' wrong-choice hint');
       d.querySelector(`.carbtn[data-id="${correct}"]`).click();
       check(w.qa.state.phase==='route',id+' dispatch');
-      await drive(w);check(w.qa.state.phase==='action',id+' action');
+      dragDrive(w,d);check(w.qa.state.phase==='action',id+' action');
+      if(id==='thief')check(w.qa.state.escapes===3,'thief escapes three times before capture');
       const need=w.qa.state.R.ev.need;
       check(d.querySelectorAll('#Lcue circle').length===need,id+' progress dots');
       const before=w.qa.state.stickers[correct]||0;
       for(let i=0;i<need;i++)w.dispatchEvent(new w.KeyboardEvent('keydown',{key:' ',bubbles:true}));
-      if(id==='hurt'){check(w.qa.state.leg==='hospital','ambulance hospital leg');await drive(w);}
+      if(id==='hurt'){check(w.qa.state.leg==='hospital','ambulance hospital leg');dragDrive(w,d);}
       await until(()=>w.qa.state.phase==='done',id+' complete');
       check(w.qa.state.stickers[correct]===before+1,id+' earns one sticker');
     }
+    for(const limit of [1,2]){w.qa.event('thief',limit);d.querySelector('.carbtn[data-id="police"]').click();dragDrive(w,d);check(w.qa.state.escapes===limit,'thief stops fleeing after '+limit+' escapes');}
+    await checkDrag(w,d,f);
+    w.qa.event('fire');d.querySelector('.carbtn[data-id="fire"]').click();
+    await drive(w);check(w.qa.state.phase==='action','keyboard route remains available');
     w.qa.event('fire');d.querySelector('.carbtn[data-id="fire"]').click();
     const {R,car}=w.qa.state,to=w.qa.nextStep(car.n,R.dest,R.blocked),a=w.qa.P(car.n),b=w.qa.P(to);
     w.dispatchEvent(new w.KeyboardEvent('keydown',{key:b.x>a.x?'ArrowRight':b.x<a.x?'ArrowLeft':b.y>a.y?'ArrowDown':'ArrowUp',bubbles:true}));
@@ -72,13 +116,14 @@ document.querySelector('#run').onclick=async()=>{
     check(!w.qa.state.parts.length&&!w.qa.state.tweens.length,'home clears animation state');
     check(!errors.length,'no runtime errors');
     for(const [width,height] of [[1024,768],[320,568],[844,390]]){
-      ({w,d,errors}=await mount(width,height));
+      ({w,d,f,errors}=await mount(width,height));
       check(w.qa.state.PORT===(height>width*1.05),'map orientation '+width);
       checkRoad(w,d,width);
       check(d.querySelector('#bar').getBoundingClientRect().bottom<=height,'controls fit '+width);
       check([...d.querySelectorAll('.carbtn')].every(b=>b.getBoundingClientRect().width>=44),'touch targets '+width);
       w.qa.event('trash');check(d.querySelectorAll('.carbtn').length===5,'five-vehicle layout '+width);
       check([...d.querySelectorAll('.carbtn')].every(b=>b.getBoundingClientRect().width>=44),'five touch targets '+width);
+      if(width!==844)await checkDrag(w,d,f);
       check(!errors.length,'no runtime errors '+width);
     }
     result.textContent+=`\n\n${passed} checks passed`;
