@@ -27,3 +27,10 @@ Use case: illustration-story. Final production artwork for a Japanese hiragana-l
 
 Use case: illustration-story. Final production artwork for a Japanese hiragana-learning game for preschool children. This is a lovingly hand-painted contemporary Japanese picture-book illustration, with delicate gouache and watercolor washes, warm colored-pencil details, fine paper texture, softly modeled light and believable perspective. Inviting, thoughtful, beautifully authored, polished enough for a published children's book. Cheerful and calm. Avoid vector art, flat geometric shapes, clip art, infographics, thick uniform black outlines, UI mockups, logos, watermarks and extra writing. The central subject must be immediately recognizable at a small thumbnail size. Pastel sky blue, warm cream, soft leaf green and small coral/yellow accents. This is one asset in a consistent four-illustration family. Asset: an isolated wide illustration with a genuinely transparent background, roughly 2.6:1 composition. A very appealing full side / slight three-quarter view of one white-and-blue Japanese Shinkansen car with a long rounded aerodynamic nose pointing to the RIGHT. Entire train visible, centered, fills most of the canvas with small breathing room. Hand-painted gouache with subtle watercolor edges, pearl-white dimensional body, deep navy windows with soft reflections, blue stripe, beautifully drawn wheels and small details. Child-friendly rounded proportions, no face, no mascot eyes, no text or lettering. Crisp recognizable silhouette. No scenery, no rails, no ground, no panel, no background color, no drop shadow outside the train. This train will appear on the title screen, follow a child's fingertip, and cross the completion screen.
 
+
+## むかしの しんかんせん
+
+- 画像：`retired-cover.webp`（960×640）。200系と2階建てMaxを描いた、引退した列車のシールちょう用の扉絵です。
+- 生成：内蔵imagegenツール。既存の`train-cover.webp`を画風の参照として使用しました。
+- 最終プロンプト：[`retired-cover-prompt.txt`](retired-cover-prompt.txt)。
+- 元画像：Codex生成画像フォルダの`exec-2a4a4d86-fc5a-4fba-92ea-d196a7d9add7.png`。既存画像は置き換えていません。
