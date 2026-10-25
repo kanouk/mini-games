@@ -7,13 +7,13 @@ const html=fs.readFileSync(path.join(root,'ekimei.html'),'utf8');
 const js=html.match(/<script>([\s\S]*?)<\/script>/)[1];
 new Function(js);
 const core=js.slice(js.indexOf('/* DATA */'),js.indexOf('/* APP:'));
-const {STROKES,SHEETS,TH,TITLES,strokeSamples,judge,normalizeState,recordCompletion,count,level,aidLevel,sheetLevel,selectWords,localDay}=new Function(core+'\nreturn {STROKES,SHEETS,TH,TITLES,strokeSamples,judge,normalizeState,recordCompletion,count,level,aidLevel,sheetLevel,selectWords,localDay};')();
+const {STROKES,SHEETS,TH,TITLES,strokeSamples,judge,normalizeState,recordCompletion,count,level,aidLevel,sheetLevel,albumProgress,albumAchievements,TRAIN_HISTORY,STATION_LINES,localDay}=new Function(core+'\nreturn {STROKES,SHEETS,TH,TITLES,strokeSamples,judge,normalizeState,recordCompletion,count,level,aidLevel,sheetLevel,albumProgress,albumAchievements,TRAIN_HISTORY,STATION_LINES,localDay};')();
 let checks=0;
 const check=(name,run)=>{try{run();checks++;}catch(e){e.message=name+': '+e.message;throw e;}};
 
 check('embedded data matches original JSON',()=>assert.deepEqual(STROKES,JSON.parse(fs.readFileSync(path.join(root,'data/strokes-hiragana.json'),'utf8'))));
 check('83 original glyphs',()=>assert.equal(Object.keys(STROKES).length,83));
-check('19 + 17 + 46 words',()=>assert.deepEqual(SHEETS.map(s=>s.words.length),[19,17,46]));
+check('original albums and 10 station routes remain distinct',()=>{assert.deepEqual(SHEETS.slice(0,3).map(s=>s.words.length),[19,17,46]);assert.equal(STATION_LINES.length,10);assert.equal(SHEETS.find(s=>s.id==='retired').words.length,5);});
 check('sheet words unique',()=>{for(const s of SHEETS)assert.equal(new Set(s.words).size,s.words.length);});
 for(const s of SHEETS)for(const word of s.words)for(const ch of word)check('glyph exists '+ch,()=>assert.ok(STROKES[ch]?.length));
 for(const [ch,number]of Object.entries({'と':2,'う':2,'き':4,'よ':2,'あ':3,'ん':1}))check('stroke count '+ch,()=>assert.equal(STROKES[ch].length,number));
@@ -62,27 +62,63 @@ check('sheet medal is the minimum level',()=>{
   const s=normalizeState(null),sheet=SHEETS[0];for(const w of sheet.words)s.counts['names:'+w]=5;
   assert.equal(sheetLevel(s,sheet),3);s.counts['names:'+sheet.words[0]]=3;assert.equal(sheetLevel(s,sheet),2);
 });
-check('five distinct words prioritize unpracticed ones',()=>{
-  const s=normalizeState(null),sheet=SHEETS[0];for(const w of sheet.words)s.counts['names:'+w]=40;
-  for(const w of sheet.words.slice(-5))s.counts['names:'+w]=0;
-  const selected=selectWords(sheet,s,()=>.5);assert.equal(selected.length,5);assert.equal(new Set(selected).size,5);assert.deepEqual(selected,sheet.words.slice(-5));
-});
-check('near the next threshold is prioritized',()=>{
-  const s=normalizeState(null),sheet=SHEETS[0];for(const w of sheet.words)s.counts['names:'+w]=10;
-  s.counts['names:'+sheet.words.at(-1)]=4;assert.equal(selectWords(sheet,s,()=>.5)[0],sheet.words.at(-1));
-});
 check('local calendar day',()=>assert.equal(localDay(new Date(2026,9,25,0,15)),'2026-10-25'));
-check('station readings match driving game',()=>{
+check('all 10 station routes match driving game data',()=>{
   const driving=fs.readFileSync(path.join(root,'../shinkansen-untenshi/shinkansen.html'),'utf8');
   const data=driving.slice(driving.indexOf('const S='),driving.indexOf('const JP_LAND'));
-  const lines=new Function('MAXV',data+';return LINES;')(900);
-  assert.deepEqual(SHEETS.find(s=>s.id==='tokaido').words,lines.find(l=>l.id==='tokaido').st.map(s=>s[1]));
+  const lines=new Function('MAXV',data+';return LINES;')(900).filter(l=>!l.parts);
+  assert.deepEqual(STATION_LINES.map(l=>l.id),lines.map(l=>l.id));
+  for(const line of lines){const actual=STATION_LINES.find(l=>l.id===line.id);assert.equal(actual.name,line.name);assert.equal(actual.color,line.c);assert.deepEqual(actual.stations,line.st.map(s=>s.slice(0,2)));}
+});
+check('embedded route and history data match editable JSON',()=>{
+  assert.deepEqual(STATION_LINES,JSON.parse(fs.readFileSync(path.join(root,'data/station-lines.json'))));
+  assert.deepEqual(TRAIN_HISTORY,JSON.parse(fs.readFileSync(path.join(root,'data/train-history.json'))));
+});
+check('train names are ordered by first Shinkansen service date',()=>{
+  for(const id of ['names','retired']){const dates=SHEETS.find(s=>s.id===id).words.map(w=>TRAIN_HISTORY.find(t=>t.word===w).opened);assert.deepEqual(dates,[...dates].sort());}
+  assert.equal(TRAIN_HISTORY.find(t=>t.word==='のぞみ').opened.slice(0,4),'1992');
+  assert.equal(TRAIN_HISTORY.find(t=>t.word==='こだま').retired,false);
+  assert.ok(SHEETS.find(s=>s.id==='retired').words.includes('まっくすとき'));
+});
+check('retired train names have verified retirement years without changing current names',()=>{
+  const expected={'あおば':1997,'あさひ':2002,'まっくすあさひ':2002,'まっくすとき':2021,'まっくすたにがわ':2021};
+  for(const t of TRAIN_HISTORY){if(t.retired){assert.equal(t.retiredYear,expected[t.word]);assert.ok(t.retiredYear>=+t.opened.slice(0,4));}else assert.equal(t.retiredYear,undefined);}
+});
+check('a whole album advances only when the final box reaches each threshold',()=>{
+  const sheet=SHEETS.find(s=>s.id==='tokaido');
+  for(const threshold of TH.slice(1)){
+    const before=normalizeState(null);for(const w of sheet.words)before.counts['tokaido:'+w]=threshold;
+    const final=sheet.words[0];before.counts['tokaido:'+final]=threshold-1;
+    assert.equal(albumProgress(before,sheet).target,threshold);assert.equal(albumProgress(before,sheet).ready,sheet.words.length-1);
+    const after=recordCompletion(before,'tokaido',final,'2026-10-25');
+    assert.deepEqual(albumAchievements(before,after).filter(a=>a.id==='tokaido'),[{id:'tokaido',level:TH.indexOf(threshold)}]);
+    assert.equal(albumProgress(after,sheet).level,TH.indexOf(threshold));
+    assert.deepEqual(albumAchievements(after,after),[]);
+    assert.equal(before.counts['tokaido:'+final],threshold-1);
+  }
+});
+check('finishing one word can also upgrade the kana album',()=>{
+  const before=normalizeState(null),kana=SHEETS.find(s=>s.id==='hira');for(const ch of kana.words)before.counts['hira:'+ch]=1;
+  before.counts['hira:そ']=0;
+  const after=recordCompletion(before,'names','のぞみ','2026-10-25');assert.ok(albumAchievements(before,after).some(a=>a.id==='hira'&&a.level===1));
+});
+check('new historical and station albums do not lower existing album levels',()=>{
+  const old={counts:{},days:['2026-10-24'],completed:99,tol:'wide',voice:'off',aid:'full',autodemo:'off'};
+  for(const sheet of SHEETS.slice(0,3))for(const w of sheet.words)old.counts[sheet.id+':'+w]=5;
+  const raw=JSON.stringify(old),loaded=normalizeState(JSON.parse(raw));assert.equal(JSON.stringify(old),raw);assert.deepEqual(loaded,old);
+  for(const sheet of SHEETS.slice(0,3))assert.equal(sheetLevel(loaded,sheet),3);
+  assert.equal(sheetLevel(loaded,SHEETS.find(s=>s.id==='retired')),0);
+  assert.equal(albumProgress(loaded,SHEETS[0]).target,10);
+});
+check('mastered albums have a finite completed progress meter',()=>{
+  const state=normalizeState(null),sheet=SHEETS[0];for(const w of sheet.words)state.counts[sheet.id+':'+w]=40;
+  const p=albumProgress(state,sheet);assert.equal(p.level,6);assert.equal(p.target,null);assert.equal(p.ready,p.total);
 });
 check('home card is before coming soon',()=>{const home=fs.readFileSync(path.join(root,'../index.html'),'utf8');assert.ok(home.indexOf('href="ekimei-aiueo/ekimei.html"')>0);assert.ok(home.indexOf('href="ekimei-aiueo/ekimei.html"')<home.indexOf('<div class="card soon">'));});
 check('no runtime stroke fetch or external application script',()=>{assert.ok(!/<script\s+[^>]*src=/.test(html));assert.ok(!/\bfetch\(/.test(js));});
 
 const artwork=JSON.parse(js.match(/^const ART=(\{[^\n]+\});$/m)[1]);
-for(const [id,file]of Object.entries({names:'train-cover',tokaido:'station-cover',hira:'kana-cover',train:'train-character'}))check('embedded artwork matches '+file,()=>{
+for(const [id,file]of Object.entries({names:'train-cover',tokaido:'station-cover',hira:'kana-cover',train:'train-character',retired:'retired-cover'}))check('embedded artwork matches '+file,()=>{
   const bytes=fs.readFileSync(path.join(root,'assets',file+'.webp'));
   assert.equal(bytes.toString('ascii',8,12),'WEBP');
   assert.deepEqual(Buffer.from(artwork[id].split(',')[1],'base64'),bytes);
@@ -90,6 +126,6 @@ for(const [id,file]of Object.entries({names:'train-cover',tokaido:'station-cover
 });
 
 const frequency=Object.fromEntries(SHEETS[2].words.map(ch=>[ch,0]));
-for(const sheet of SHEETS.slice(0,2))for(const w of sheet.words)for(const ch of w){const base=({が:'か',ぎ:'き',ぐ:'く',げ:'け',ご:'こ',ざ:'さ',じ:'し',ず:'す',ぜ:'せ',ぞ:'そ',だ:'た',ぢ:'ち',づ:'つ',で:'て',ど:'と',ば:'は',び:'ひ',ぶ:'ふ',べ:'へ',ぼ:'ほ',ぱ:'は',ぴ:'ひ',ぷ:'ふ',ぺ:'へ',ぽ:'ほ',ょ:'よ',ゃ:'や',ゅ:'ゆ',っ:'つ'})[ch]||ch;if(base in frequency)frequency[base]++;}
+for(const sheet of SHEETS.filter(s=>!s.kana))for(const w of sheet.words)for(const ch of w){const base=({が:'か',ぎ:'き',ぐ:'く',げ:'け',ご:'こ',ざ:'さ',じ:'し',ず:'す',ぜ:'せ',ぞ:'そ',だ:'た',ぢ:'ち',づ:'つ',で:'て',ど:'と',ば:'は',び:'ひ',ぶ:'ふ',べ:'へ',ぼ:'ほ',ぱ:'は',ぴ:'ひ',ぷ:'ふ',ぺ:'へ',ぽ:'ほ',ょ:'よ',ゃ:'や',ゅ:'ゆ',っ:'つ'})[ch]||ch;if(base in frequency)frequency[base]++;}
 console.log('出題語で登場3回未満の清音（あいうえおシートで単独練習できます）：'+Object.entries(frequency).filter(([,c])=>c<3).map(([ch,c])=>ch+'('+c+')').join('、'));
 console.log(checks+' checks passed');

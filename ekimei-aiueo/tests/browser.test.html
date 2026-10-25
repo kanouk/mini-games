@@ -5,7 +5,7 @@
 <title>えきめい あいうえお：ブラウザテスト</title>
 <style>body{font:16px system-ui;margin:20px;background:#edf5ff;color:#14213d}button{min-height:72px;padding:16px;font:inherit}#result{white-space:pre-wrap}iframe{display:block;border:2px solid #14213d;max-width:none;margin-top:20px}#result.failed{color:#a21424}</style>
 <h1>えきめい あいうえお：ブラウザテスト</h1>
-<p>本番HTMLを隔離したテスト用保存キーで実行します。画面遷移のタイマーを短縮し、実際のSVGパスに沿ったPointerEventで全82マスを確認します。</p>
+<p>本番HTMLを隔離したテスト用保存キーで実行します。画面遷移のタイマーを短縮し、実際のSVGパスに沿ったPointerEventで全218マスを確認します。</p>
 <button id="run">テストを実行</button>
 <pre id="result" role="status">待機中</pre>
 <div id="frames"></div>
@@ -14,11 +14,13 @@ const output=document.getElementById('result'),frames=document.getElementById('f
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const assert=(condition,message)=>{if(!condition)throw new Error(message);};
 async function until(check,message){for(let i=0;i<100;i++){if(check())return;await pause(15);}throw new Error('Timed out: '+message);}
+const previewParams=new URLSearchParams(location.search);
+const lineIds=['tokaido','sanyo','kyushu','nishikyushu','tohoku','hokkaido','yamagata','akita','joetsu','hokuriku'];
 let completed=0;
 function pass(message){completed++;output.textContent+='\n✓ '+message;}
 document.getElementById('run').onclick=async()=>{
   document.getElementById('run').disabled=true;output.className='';output.textContent='実行中';completed=0;
-  const storageKey='ekimei-aiueo-browser-test-'+Date.now();let frame;
+  const storageKey='ekimei-aiueo-browser-test-'+Date.now(),realSave=localStorage.getItem('ekimei-aiueo');let frame;
   try{
     const original=await(await fetch('../ekimei.html')).text();
     const strokes=await(await fetch('../data/strokes-hiragana.json')).json();
@@ -36,7 +38,9 @@ document.getElementById('run').onclick=async()=>{
     const state=()=>JSON.parse(localStorage.getItem(storageKey)||'{}');
     const settings=()=>{click('#gear');};
     const option=(name,value)=>click(`[data-k="${name}"] [data-v="${value}"]`);
-    const beginSheet=id=>{click('#startBtn');click(`.tile[data-id="${id}"]`);};
+    const openFromHome=id=>{if(lineIds.includes(id)){click('.tile[data-id="stations"]');click(`.line-card[data-id="${id}"]`);}else click(`.tile[data-id="${id}"]`);};
+    const beginSheet=id=>{click('#startBtn');openFromHome(id);};
+    const toTitle=()=>{if(isPage('done'))click('#done .back');if(isPage('sheet'))click('#sheet .back');if(isPage('routes'))click('#routes .back');if(isPage('home'))click('#home .back');};
     const stroke=(d,variant='forward')=>{
       const win=frame.contentWindow,pad=q('#pad'),r=q('#padSvg').getBoundingClientRect(),path=doc.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',d);
       const length=path.getTotalLength(),points=Array.from({length:49},(_,i)=>path.getPointAtLength(length*i/48));
@@ -52,7 +56,21 @@ document.getElementById('run').onclick=async()=>{
       }
       assert(isPage('done'),'Completion screen for '+word);
       assert(q('#sticker').textContent===word,'Correct sticker for '+word);
+      const sticker=q('#sticker');assert(sticker.offsetWidth<=frame.contentWindow.innerWidth&&sticker.scrollWidth<=sticker.clientWidth+1,'Complete word fits viewport: '+word);
     };
+    const finishViaCell=async(word)=>{click(`.cell[data-w="${word}"]`);await finishWord(word);};
+    if(previewParams.has('preview')){
+      const seed={counts:{},days:[],completed:0,tol:'normal',voice:'off',autodemo:'off',aid:'full'};
+      for(const w of ['たけおおんせん','うれしのおんせん','しんおおむら','いさはや','ながさき'])seed.counts['nishikyushu:'+w]=1;
+      const mode=previewParams.get('preview');if(mode==='award'||mode==='double'){seed.counts['nishikyushu:いさはや']=0;}
+      if(mode==='double'){for(const ch of 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん')seed.counts['hira:'+ch]=1;seed.counts['hira:い']=0;}
+      localStorage.setItem(storageKey,JSON.stringify(seed));doc=await load(+(previewParams.get('width')||400));
+      if(mode==='award'||mode==='double'){beginSheet('nishikyushu');await finishViaCell('いさはや');}
+      else if(mode==='routes'){click('#startBtn');click('.tile[data-id="stations"]');}
+      else if(mode==='names'||mode==='retired'||mode==='nishikyushu')beginSheet(mode);
+      else click('#startBtn');
+      return;
+    }
     settings();option('voice','off');option('autodemo','off');option('aid','full');
     const smallButtons=[...doc.querySelectorAll('#settings button')].filter(b=>{const r=b.getBoundingClientRect();return r.width>0&&(r.width<72||r.height<72);});
     assert(smallButtons.length===0,'Settings tap targets >=72px');
@@ -83,15 +101,22 @@ document.getElementById('run').onclick=async()=>{
     click('#trace .back');click('#sheet .back');click('#home .back');
     for(const width of [400,1024]){
       doc=await load(width);
-      beginSheet('names');
-      const sheets=['names','tokaido','hira'];
-      for(const sheet of sheets){
-        if(sheet!=='names'){click('#sheet .back');click(`.tile[data-id="${sheet}"]`);}
+      for(const sheet of ['names',...lineIds,'hira','retired']){
+        beginSheet(sheet);
+        assert(!q('#goBtn'),'Departure button removed');
+        if(sheet==='names'||sheet==='retired'){
+          const years=[...doc.querySelectorAll('.train-meta')].map(e=>+e.textContent.match(/(\d{4})年開業/)[1]);
+          assert(years.every((year,i)=>!i||year>=years[i-1]),'Train years ascending');
+          assert([...doc.querySelectorAll('.train-meta')].every(e=>e.textContent.includes('新幹線')),'Route labels present');
+          if(sheet==='retired')assert([...doc.querySelectorAll('.retired-year')].length===5&&[...doc.querySelectorAll('.retired-year')].every(e=>/\d{4}年引退/.test(e.textContent)),'Retirement years shown for all historical trains');
+        }
         const words=[...doc.querySelectorAll('.cell')].map(b=>b.dataset.w);
         for(const word of words){click(`.cell[data-w="${word}"]`);await finishWord(word);click('#nextBtn');}
-        pass(width+'px：'+sheet+' の全'+words.length+'マスをなぞって完成');
+        assert(q('#sheet').dataset.albumLevel!=='0','Entire album has advanced');
+        if(lineIds.includes(sheet))assert(q('#sheetProgress').textContent.includes('ぜんぶ'),'Whole-route status');
+        pass(width+'px：'+sheet+' の全'+words.length+'マスをなぞって完成・全体が昇格');
+        toTitle();
       }
-      click('#sheet .back');click('#home .back');
       assert(doc.documentElement.scrollWidth<=width,width+'px horizontal overflow');
     }
     const savedCompleted=state().completed;
@@ -109,11 +134,45 @@ document.getElementById('run').onclick=async()=>{
       await finishWord('あ');click('#nextBtn');
       pass(practice+'回：補助が変わり、同じ筆順で完成できる');
     }
-    click('#sheet .back');click('#home .back');settings();option('aid','full');click('#settings .back');beginSheet('names');
-    const beforeRun=state().completed;click('#goBtn');
-    for(let i=0;i<5;i++){const w=q('#chips').textContent;await finishWord(w);click('#nextBtn');}
-    assert(isPage('sheet')&&state().completed===beforeRun+5,'Five word departure');
-    pass('しゅっぱつは5語で終わり、合計に5回だけ加算する');
+    toTitle();
+    // Seed the old schema exactly. Rendering new screens must not write or migrate it.
+    const legacy={counts:{'names:のぞみ':5,'tokaido:とうきょう':3,'hira:あ':10},days:['2026-10-24'],completed:18,tol:'wide',voice:'off',aid:'full',autodemo:'off'};
+    const legacyJSON=JSON.stringify(legacy);localStorage.setItem(storageKey,legacyJSON);doc=await load();
+    assert(localStorage.getItem(storageKey)===legacyJSON,'No save rewrite on load');
+    beginSheet('tokaido');assert(q('.cell[data-w="とうきょう"]').classList.contains('l2'),'Legacy station level retained');
+    assert(localStorage.getItem(storageKey)===legacyJSON,'Navigation does not rewrite saves');
+    toTitle();beginSheet('names');assert(q('.cell[data-w="のぞみ"]').classList.contains('l3'),'Legacy train level retained after sorting');
+    await finishViaCell('こだま');
+    assert(state().counts['names:のぞみ']===5&&state().counts['tokaido:とうきょう']===3&&state().counts['hira:あ']===10,'Unrelated legacy counts retained');
+    assert(state().completed===19&&state().days.includes('2026-10-24'),'Legacy totals, days retained');
+    for(const setting of ['tol','voice','aid','autodemo'])assert(state()[setting]===legacy[setting],'Legacy setting '+setting);
+    pass('旧形式の保存内容を読み込み・並べ替え・画面移動で書き換えず、完成後も既存回数・日付・全設定を維持');
+    for(const threshold of [1,3,5,10,20,40]){
+      const seed={...legacy,counts:{...legacy.counts}};
+      const route=['たけおおんせん','うれしのおんせん','しんおおむら','いさはや','ながさき'];
+      for(const w of route)seed.counts['nishikyushu:'+w]=threshold;
+      seed.counts['nishikyushu:いさはや']=threshold-1;localStorage.setItem(storageKey,JSON.stringify(seed));doc=await load();beginSheet('nishikyushu');
+      assert(q('#sheetProgress').textContent.includes('あと 1こ'),'One box left for '+threshold);
+      click('.cell[data-w="いさはや"]');await finishWord('いさはや');
+      assert(!q('#achievement').hidden&&q('#achievement').textContent.includes('ぜんぶ '+threshold+'かい'),'Whole-album celebration '+threshold);
+      click('#nextBtn');assert(q('#sheetProgress').textContent.includes('ぜんぶ '+threshold+'かい'),'Persistent tier '+threshold);
+      toTitle();doc=await load();beginSheet('nishikyushu');assert(q('#sheetProgress').textContent.includes('ぜんぶ '+threshold+'かい'),'Tier survives reload '+threshold);
+      click('.cell[data-w="いさはや"]');await finishWord('いさはや');assert(q('#achievement').hidden,'No repeat celebration at same tier');
+      pass('全駅'+threshold+'回：最後の1駅で昇格してお祝い、再読み込み後も維持、同段階の再演出なし');
+      toTitle();
+    }
+    const double={...legacy,counts:{}};
+    for(const ch of 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん')double.counts['hira:'+ch]=1;
+    double.counts['hira:い']=0;
+    for(const w of ['たけおおんせん','うれしのおんせん','しんおおむら','いさはや','ながさき'])double.counts['nishikyushu:'+w]=1;
+    double.counts['nishikyushu:いさはや']=0;localStorage.setItem(storageKey,JSON.stringify(double));doc=await load(320);beginSheet('nishikyushu');click('.cell[data-w="いさはや"]');await finishWord('いさはや');
+    assert(doc.querySelectorAll('.award-card').length===2,'Station and kana awards together');
+    assert(q('.award-card').getBoundingClientRect().top>=0,'First award not clipped in 320px viewport');
+    q('#nextBtn').scrollIntoView({block:'center'});const nextRect=q('#nextBtn').getBoundingClientRect();assert(nextRect.top>=0&&nextRect.bottom<=844,'Continue reachable in 320px viewport');
+    click('#nextBtn');assert(isPage('sheet'),'Continue after simultaneous achievements');
+    pass('320px：駅とひらがなの同時昇格を両方表示し、スクロールして続けられる');
+    assert(localStorage.getItem('ekimei-aiueo')===realSave,'Real saved progress never changed');
+    pass('本来のlocalStorageキーは開始前と完全一致');
     const failurePrelude='<script>Object.defineProperty(window,"localStorage",{get(){throw new Error("Storage disabled for test");}});<\/script>';
     doc=await load(400,failurePrelude);beginSheet('hira');click('.cell[data-w="へ"]');await finishWord('へ');
     pass('保存を禁止した環境でも最後まで遊べる');
@@ -121,5 +180,9 @@ document.getElementById('run').onclick=async()=>{
   }catch(error){output.className='failed';output.textContent+='\n\nFAIL: '+error.stack;}
   finally{localStorage.removeItem(storageKey);document.getElementById('run').disabled=false;}
 };
+if(previewParams.has('preview')){
+  const style=document.createElement('style');style.textContent='body{margin:0}body>h1,body>p,#run,#result{display:none}iframe{margin:0;border:0}';document.head.append(style);
+  document.querySelector('#run').click();
+}
 </script>
 </html>

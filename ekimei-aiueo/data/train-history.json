@@ -1,0 +1,151 @@
+[
+  {
+    "word": "ひかり",
+    "line": "東海道・山陽新幹線",
+    "opened": "1964-10-01",
+    "retired": false
+  },
+  {
+    "word": "こだま",
+    "line": "東海道・山陽新幹線",
+    "opened": "1964-10-01",
+    "retired": false
+  },
+  {
+    "word": "やまびこ",
+    "line": "東北新幹線",
+    "opened": "1982-06-23",
+    "retired": false
+  },
+  {
+    "word": "とき",
+    "line": "上越新幹線",
+    "opened": "1982-11-15",
+    "retired": false
+  },
+  {
+    "word": "のぞみ",
+    "line": "東海道・山陽新幹線",
+    "opened": "1992-03-14",
+    "retired": false
+  },
+  {
+    "word": "つばさ",
+    "line": "山形新幹線",
+    "opened": "1992-07-01",
+    "retired": false
+  },
+  {
+    "word": "なすの",
+    "line": "東北新幹線",
+    "opened": "1995-12-01",
+    "retired": false
+  },
+  {
+    "word": "こまち",
+    "line": "秋田新幹線",
+    "opened": "1997-03-22",
+    "retired": false
+  },
+  {
+    "word": "あさま",
+    "line": "北陸新幹線",
+    "opened": "1997-10-01",
+    "retired": false
+  },
+  {
+    "word": "たにがわ",
+    "line": "上越新幹線",
+    "opened": "1997-10-01",
+    "retired": false
+  },
+  {
+    "word": "はやて",
+    "line": "東北・北海道新幹線",
+    "opened": "2002-12-01",
+    "retired": false
+  },
+  {
+    "word": "つばめ",
+    "line": "九州新幹線",
+    "opened": "2004-03-13",
+    "retired": false
+  },
+  {
+    "word": "はやぶさ",
+    "line": "東北・北海道新幹線",
+    "opened": "2011-03-05",
+    "retired": false
+  },
+  {
+    "word": "みずほ",
+    "line": "山陽・九州新幹線",
+    "opened": "2011-03-12",
+    "retired": false
+  },
+  {
+    "word": "さくら",
+    "line": "山陽・九州新幹線",
+    "opened": "2011-03-12",
+    "retired": false
+  },
+  {
+    "word": "かがやき",
+    "line": "北陸新幹線",
+    "opened": "2015-03-14",
+    "retired": false
+  },
+  {
+    "word": "はくたか",
+    "line": "北陸新幹線",
+    "opened": "2015-03-14",
+    "retired": false
+  },
+  {
+    "word": "つるぎ",
+    "line": "北陸新幹線",
+    "opened": "2015-03-14",
+    "retired": false
+  },
+  {
+    "word": "かもめ",
+    "line": "西九州新幹線",
+    "opened": "2022-09-23",
+    "retired": false
+  },
+  {
+    "word": "あおば",
+    "line": "東北新幹線",
+    "opened": "1982-06-23",
+    "retired": true,
+    "retiredYear": 1997
+  },
+  {
+    "word": "あさひ",
+    "line": "上越新幹線",
+    "opened": "1982-11-15",
+    "retired": true,
+    "retiredYear": 2002
+  },
+  {
+    "word": "まっくすあさひ",
+    "line": "上越新幹線",
+    "opened": "1994-07-15",
+    "retired": true,
+    "retiredYear": 2002
+  },
+  {
+    "word": "まっくすとき",
+    "line": "上越新幹線",
+    "opened": "1994-07-15",
+    "retired": true,
+    "retiredYear": 2021
+  },
+  {
+    "word": "まっくすたにがわ",
+    "line": "上越新幹線",
+    "opened": "1997-10-01",
+    "retired": true,
+    "retiredYear": 2021
+  }
+]
