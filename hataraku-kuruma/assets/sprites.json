@@ -1,0 +1,97 @@
+{
+  "car-fire": {
+    "source": "exec-457fd98f-1212-4745-9dda-dd5308b5b56e.png",
+    "width": 384,
+    "bytes": 24452
+  },
+  "building-house": {
+    "source": "exec-d6a33e97-933d-4038-80c9-0e9359b0af01.png",
+    "width": 256,
+    "bytes": 20852
+  },
+  "car-police": {
+    "source": "exec-772a592e-573e-47f1-a87f-c2c82a0c604b.png",
+    "width": 384,
+    "bytes": 17538
+  },
+  "car-ambulance": {
+    "source": "exec-b5717ed4-72c0-4db6-9143-66837c4738da.png",
+    "width": 384,
+    "bytes": 19726
+  },
+  "car-garbage": {
+    "source": "exec-b8edfdcb-39c7-4871-9d78-976e7aa05f65.png",
+    "width": 384,
+    "bytes": 21922
+  },
+  "car-excavator": {
+    "source": "exec-627dd9bc-9d3c-40ad-b44a-9050ba560d3d.png",
+    "width": 384,
+    "bytes": 23146
+  },
+  "building-shop": {
+    "source": "exec-6d8de8ca-ae70-4432-817e-d9d4bfa0dd2b.png",
+    "width": 256,
+    "bytes": 22444
+  },
+  "building-park": {
+    "source": "exec-54063647-fab0-423e-8648-72776f323dba.png",
+    "width": 256,
+    "bytes": 24094
+  },
+  "building-fire-station": {
+    "source": "exec-b605af89-c4a2-4cb9-9fbc-688d5c98f07b.png",
+    "width": 256,
+    "bytes": 21762
+  },
+  "building-police-station": {
+    "source": "exec-c60be050-a363-4db5-a23b-f24ed1a3c03d.png",
+    "width": 256,
+    "bytes": 22200
+  },
+  "building-hospital": {
+    "source": "exec-dbf74cfd-0582-420c-a0fc-646e1e6c6f76.png",
+    "width": 256,
+    "bytes": 22070
+  },
+  "building-depot": {
+    "source": "exec-c1710b45-73d4-471c-a20b-63c083f85aa7.png",
+    "width": 256,
+    "bytes": 21010
+  },
+  "actor-cat": {
+    "source": "exec-c82ac3c6-e5fd-4a1a-82b3-b446af048d1d.png",
+    "width": 192,
+    "bytes": 12096
+  },
+  "actor-child": {
+    "source": "exec-ce41ed8b-5cd3-448a-ae2b-c5d601232e1a.png",
+    "width": 192,
+    "bytes": 10282
+  },
+  "actor-thief": {
+    "source": "exec-685f0f67-e21c-403c-b9cf-808b9d941811.png",
+    "width": 192,
+    "bytes": 10576
+  },
+  "prop-bag": {
+    "source": "exec-8792af58-e292-4c22-9287-71e4a73724b7.png",
+    "width": 192,
+    "bytes": 8566
+  },
+  "prop-rock": {
+    "source": "exec-d9fbf264-a9ed-40d8-8000-92572f94c2a3.png",
+    "width": 192,
+    "bytes": 7266
+  },
+  "prop-tree": {
+    "source": "exec-46758d86-2d25-4e28-8f26-282c3ecf25c2.png",
+    "width": 192,
+    "bytes": 10810
+  },
+  "prop-flame": {
+    "source": "exec-b2f3ce02-6a49-4b11-aaa1-d2afec155551.png",
+    "width": 192,
+    "bytes": 7712
+  }
+}
