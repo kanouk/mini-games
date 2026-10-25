@@ -1,0 +1,97 @@
+<!doctype html><meta charset="utf-8"><title>くるま Browser QA</title>
+<style>body{font:16px system-ui;margin:16px;background:#edf3f7}button{padding:12px;font:inherit}iframe{display:block;border:1px solid #abc;max-width:none;margin-top:12px}pre{white-space:pre-wrap}</style>
+<button id="run">テストを実行</button><pre id="result">Ready</pre><div id="frames"></div>
+<script>
+const result=document.querySelector('#result'),frames=document.querySelector('#frames');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let passed=0;
+function check(ok,label){if(!ok)throw Error(label);passed++;result.textContent+=`\nPASS ${label}`;}
+async function until(fn,label){for(let i=0;i<150;i++){if(fn())return;await sleep(20);}throw Error('Timeout: '+label);}
+async function mount(width,height){
+  let source=await(await fetch('../kuruma.html')).text();
+  source=source.replaceAll("'hkc'","'hkc-qa-"+Date.now()+"'");
+  source=source.replace('dur:0.6,n:to','dur:0.04,n:to');
+  source=source.replace('start();\n})();',`window.qa={get state(){return {phase,R,car,hits,leg,stickers,parts,tweens,PORT};},P,nextStep,blockCenter,nodes:NODES,blocks:TOWN.length,sprites:SPRITES,
+    event(id){for(let i=0;i<100;i++){round=10;newRound();if(R.ev.id===id)return;}throw Error('Event unavailable');}};\nstart();\n})();`);
+  // Relative assets/icons resolve normally from this test fixture; sprites are embedded.
+  const f=document.createElement('iframe');f.style.width=width+'px';f.style.height=height+'px';
+  frames.replaceChildren(f);f.srcdoc=source;await new Promise(r=>f.onload=r);
+  const w=f.contentWindow,d=f.contentDocument;await until(()=>w.qa,'startup');
+  d.querySelector('#sndBtn').click();
+  const errors=[];w.addEventListener('error',e=>errors.push(e.message));
+  check(w.innerWidth===width,`viewport ${width}x${height}`);
+  d.querySelector('#tStart').click();await sleep(160);
+  return {w,d,f,errors};
+}
+function checkRoad(w,d,label){
+  const road=d.querySelector('#town-road'),q=w.qa;
+  check(Array.from({length:q.nodes},(_,n)=>{const p=q.P(n),point=new w.DOMPoint(p.x,p.y);return road.isPointInFill(point)&&!road.isPointInStroke(point);}).every(Boolean),'junctions stay open without curb lines '+label);
+  check(Array.from({length:q.blocks},(_,b)=>{const p=q.blockCenter(b);return !road.isPointInFill(new w.DOMPoint(p.x,p.y));}).every(Boolean),'buildings stay outside road surface '+label);
+}
+async function drive(w){let guard=0;
+  while(w.qa.state.phase==='route'&&guard++<60){
+    const {R,car}=w.qa.state,n=w.qa.nextStep(car.n,R.dest,R.blocked),a=w.qa.P(car.n),b=w.qa.P(n);
+    if(n<0)throw Error('Unreachable destination');
+    const key=b.x>a.x?'ArrowRight':b.x<a.x?'ArrowLeft':b.y>a.y?'ArrowDown':'ArrowUp';
+    w.dispatchEvent(new w.KeyboardEvent('keydown',{key,bubbles:true}));
+    if(b.x!==a.x)check(w.qa.state.car.face===Math.sign(b.x-a.x),'vehicle faces direction of travel');
+    await until(()=>!w.qa.state.car.mv,'arrival');
+  }
+  check(guard<60,'route finishes including thief chase');
+}
+document.querySelector('#run').onclick=async()=>{
+  result.textContent='Running';passed=0;
+  try{
+    let {w,d,errors}=await mount(400,844);
+    check(w.qa.state.PORT,'portrait map');
+    checkRoad(w,d,'400');
+    check(d.querySelector('#bar').getBoundingClientRect().bottom<=844,'controls fit portrait');
+    const images=Object.values(w.qa.sprites);
+    await Promise.all(images.map(el=>new Promise((resolve,reject)=>{const im=new w.Image();im.onload=resolve;im.onerror=()=>reject(Error('Sprite decode'));im.src=el;})));
+    check(images.length===19,'all 19 embedded sprites decode');
+    for(const id of ['fire','cat','thief','hurt','trash','rock']){
+      w.qa.event(id);const correct=w.qa.state.R.car.id;
+      const wrong=[...d.querySelectorAll('.carbtn')].find(b=>b.dataset.id!==correct);
+      wrong.click();wrong.click();check(d.querySelector('.carbtn.hint')?.dataset.id===correct,id+' wrong-choice hint');
+      d.querySelector(`.carbtn[data-id="${correct}"]`).click();
+      check(w.qa.state.phase==='route',id+' dispatch');
+      await drive(w);check(w.qa.state.phase==='action',id+' action');
+      const need=w.qa.state.R.ev.need;
+      check(d.querySelectorAll('#Lcue circle').length===need,id+' progress dots');
+      const before=w.qa.state.stickers[correct]||0;
+      for(let i=0;i<need;i++)w.dispatchEvent(new w.KeyboardEvent('keydown',{key:' ',bubbles:true}));
+      if(id==='hurt'){check(w.qa.state.leg==='hospital','ambulance hospital leg');await drive(w);}
+      await until(()=>w.qa.state.phase==='done',id+' complete');
+      check(w.qa.state.stickers[correct]===before+1,id+' earns one sticker');
+    }
+    w.qa.event('fire');d.querySelector('.carbtn[data-id="fire"]').click();
+    const {R,car}=w.qa.state,to=w.qa.nextStep(car.n,R.dest,R.blocked),a=w.qa.P(car.n),b=w.qa.P(to);
+    w.dispatchEvent(new w.KeyboardEvent('keydown',{key:b.x>a.x?'ArrowRight':b.x<a.x?'ArrowLeft':b.y>a.y?'ArrowDown':'ArrowUp',bubbles:true}));
+    d.querySelector('#homeBtn').click();await sleep(800);
+    check(w.qa.state.phase==='title'&&!w.qa.state.car.mv,'home cancels active journey');
+    check(!w.qa.state.parts.length&&!w.qa.state.tweens.length,'home clears animation state');
+    check(!errors.length,'no runtime errors');
+    for(const [width,height] of [[1024,768],[320,568],[844,390]]){
+      ({w,d,errors}=await mount(width,height));
+      check(w.qa.state.PORT===(height>width*1.05),'map orientation '+width);
+      checkRoad(w,d,width);
+      check(d.querySelector('#bar').getBoundingClientRect().bottom<=height,'controls fit '+width);
+      check([...d.querySelectorAll('.carbtn')].every(b=>b.getBoundingClientRect().width>=44),'touch targets '+width);
+      w.qa.event('trash');check(d.querySelectorAll('.carbtn').length===5,'five-vehicle layout '+width);
+      check([...d.querySelectorAll('.carbtn')].every(b=>b.getBoundingClientRect().width>=44),'five touch targets '+width);
+      check(!errors.length,'no runtime errors '+width);
+    }
+    result.textContent+=`\n\n${passed} checks passed`;
+  }catch(e){result.textContent+='\nFAIL '+e.stack;}
+};
+const preview=new URLSearchParams(location.search);
+if(preview.has('preview')){
+  document.querySelector('#run').hidden=true;result.hidden=true;
+  document.body.style.margin='0';frames.style.margin='0';
+  mount(preview.get('preview')==='portrait'?400:1024,preview.get('preview')==='portrait'?844:768).then(async({w,d,f})=>{
+    f.style.margin='0';f.style.border='0';w.qa.event(preview.get('event')||'fire');
+    if(preview.has('drive')||preview.has('action'))d.querySelector(`.carbtn[data-id="${w.qa.state.R.car.id}"]`).click();
+    if(preview.has('action'))await drive(w);
+  });
+}
+</script>
