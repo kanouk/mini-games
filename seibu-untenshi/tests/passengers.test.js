@@ -7,11 +7,11 @@ const math=Object.create(Math);math.random=()=>{seed=(seed*1664525+1013904223)>>
 const ctx={save(){depth++;},restore(){depth--;},rotate(a){assert(Number.isFinite(a));rotations++;}};
 for(const name of ['translate','fillRect','beginPath','arc','fill','moveTo','lineTo','stroke'])ctx[name]=(...args)=>assert(args.every(x=>typeof x!=='number'||Number.isFinite(x)));
 const api=vm.runInNewContext(`
-  let pos=0,state='stopped',doorAnim=1,stopT=5;const bw=1000,reduced=false;
+  let pos=0,state='stopped',doorAnim=1,stopT=5;const bw=1000,reduced=false;let calls=[];function playClip(name){calls.push(name);}
   const X=k=>k*10000,kNear=x=>Math.round(x/10000),isEnd=()=>false,railY=()=>100;function rr(){}
   ${source}
   ({person,pickStumbler,stumblePose,spawnWaiting,spawnAlight,paxBusy,doorBusy,paxUpdate,drawPeople,markPlatformDeparture,
-    get people(){return people},set people(p){people=p},
+    get people(){return people},set people(p){people=p},get calls(){return calls},
     setup(o={}){state=o.state??'stopped';pos=o.pos??0;doorAnim=o.doorAnim??1;stopT=o.stopT??5;DOORS=o.doors??[0,100];}})
 `,{Math:math,ctx});
 function check(name,ok){assert(ok,name);checks++;}
@@ -19,9 +19,11 @@ const make=(x=-20,kind='wait',door=0)=>api.person(x,kind,door,0,0);
 const p=make();api.people=[p];p.willTrip=true;
 api.paxUpdate(.05);check('乗車する人はまずドアへ向かう',p.kind==='toDoor');
 api.paxUpdate(.05);check('選ばれた人だけが転ぶ',p.kind==='stumble'&&!p.willTrip&&p.fallDir===-1);
+check('転んだ瞬間に声を再生する',api.calls.join(',')==='ah');
 check('転んでも乗降待ちが終わらなくならない',!api.paxBusy()&&!api.doorBusy(0));
 for(let j=0;j<36;j++)api.paxUpdate(.05);
 check('起き上がって乗り遅れる',p.kind==='missed'&&p.a===1&&p.X===-20);
+check('転んでいる間に声を繰り返さない',api.calls.length===1);
 api.setup({stopT:100});for(let j=0;j<200;j++)api.paxUpdate(.05);
 check('長く停車していても今回の電車には乗らない',p.kind==='missed'&&p.X===-20);
 api.markPlatformDeparture(0);api.spawnWaiting(1);
