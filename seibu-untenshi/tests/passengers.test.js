@@ -8,6 +8,7 @@ const ctx={save(){depth++;},restore(){depth--;},rotate(a){assert(Number.isFinite
 for(const name of ['translate','fillRect','beginPath','arc','fill','moveTo','lineTo','stroke'])ctx[name]=(...args)=>assert(args.every(x=>typeof x!=='number'||Number.isFinite(x)));
 const api=vm.runInNewContext(`
   let pos=0,state='stopped',doorAnim=1,stopT=5;const bw=1000,reduced=false;let calls=[];function playClip(name){calls.push(name);}
+  const trip={st:()=>['テスト駅'],isStop:()=>true};
   const X=k=>k*10000,kNear=x=>Math.round(x/10000),isEnd=()=>false,railY=()=>100;function rr(){}
   ${source}
   ({person,pickStumbler,stumblePose,spawnWaiting,spawnAlight,paxBusy,doorBusy,paxUpdate,drawPeople,markPlatformDeparture,
