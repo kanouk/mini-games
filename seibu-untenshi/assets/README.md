@@ -18,6 +18,6 @@
 | ファイル | 声・速度 | 読み上げる内容 |
 |---|---|---|
 | `passenger-ah.mp3` | Kyoko・190 words/min | あっ！ |
-| `driver-handover.mp3` | Reed（日本語）・190 words/min | お願いします。お疲れさまでした。 |
+| `driver-handover.mp3` | Reed（日本語）・190 words/min | 交代します。お疲れ様でした。 |
 
 前後の無音を取り除き、24 kHz・モノラル・48 kbps MP3 にしています。同じデータを `seibu.html` 内にも埋め込み、外部取得や端末の読み上げ音声の性別に依存せず再生します。既存の「おと」設定に従います。
