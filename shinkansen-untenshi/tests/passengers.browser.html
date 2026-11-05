@@ -1,0 +1,59 @@
+<!doctype html><meta charset="utf-8"><title>新幹線の乗降確認</title>
+<style>body{font:16px system-ui;background:#edf3f7;color:#14213d;margin:16px}button{padding:12px;font:inherit}pre{white-space:pre-wrap}iframe{display:block;border:0;margin-top:16px}</style>
+<button id="run">確認する</button><pre id="result">待機中</pre><div id="frames"></div>
+<script>
+const result=document.querySelector('#result'),run=document.querySelector('#run'),frames=document.querySelector('#frames');
+const preview=new URLSearchParams(location.search).get('preview');
+let count=0;
+function check(ok,message){if(!ok)throw Error(message);count++;result.textContent+='\n✓ '+message;}
+async function mount(width,height,key){
+  localStorage.setItem(key,JSON.stringify({auto:false,soundOn:false,mapOn:true,lineId:'tokaido',tripA:0,tripB:2,fast:false}));
+  let html=await(await fetch('../shinkansen.html')).text();
+  html=html.replaceAll("'shk'",JSON.stringify(key)).replace('<script>','<script>Math.random=()=>.6;requestAnimationFrame=()=>0;');
+  const marker='if(hot&&hot.ready)hot.ready(start);else start(hot&&hot.data?hot.data:{});';
+  if(!html.includes(marker))throw Error('QA insertion point not found');
+  html=html.replace(marker,marker+`let calls=0,tick=1000;const voice=stumbleVoice;stumbleVoice=()=>{calls++;voice();};window.qa={
+    get snapshot(){return {state,pos,people,calls,busy:paxBusy()};},
+    force(){const p=pickStumbler(people,()=>0);p.willTrip=true;return p;},
+    frequency(){let hits=0;for(let i=0;i<1000;i++){let draw=0;if(pickStumbler(people,()=>draw++?0:(i+.5)/1000))hits++;}return hits;},
+    step(seconds){for(let i=0;i<Math.ceil(seconds/.05);i++)frame(tick+=50);},
+    async audio(){return (await AC.decodeAudioData(Uint8Array.from(atob(STUMBLE_VOICE),c=>c.charCodeAt(0)).buffer)).duration;},
+  };`);
+  const iframe=document.createElement('iframe');iframe.title='保存を分けた確認用ゲーム';iframe.width=width;iframe.height=height;
+  const loaded=new Promise(resolve=>iframe.onload=resolve);iframe.srcdoc=html;frames.replaceChildren(iframe);await loaded;
+  const w=iframe.contentWindow,d=iframe.contentDocument,qa=w.qa,errors=[];w.addEventListener('error',e=>errors.push(e.message));
+  if(!qa)throw Error('Game did not start');
+  d.querySelector('#tStart').click();
+  const press=type=>d.querySelector('#go').dispatchEvent(new w.PointerEvent(type,{pointerId:1,pointerType:'touch',isPrimary:true,bubbles:true,button:0,buttons:type==='pointerup'?0:1}));
+  return {qa,press,errors};
+}
+run.onclick=async()=>{
+  run.disabled=true;result.textContent='確認中';count=0;
+  const key='shk-passengers-qa-'+Date.now(),realSave=localStorage.getItem('shk');
+  try{
+    for(const [width,height] of (preview?[[1024,768]]:[[400,844],[1024,768]])){
+      const {qa,press,errors}=await mount(width,height,key);
+      check(qa.frequency()===80,`${width}px：つまずく確率は8％`);
+      const p=qa.force();press('pointerdown');qa.step(.5);
+      check(p.kind==='stumble'&&p.t>0&&qa.snapshot.people.filter(q=>q.kind==='stumble').length===1,'乗るときに1人だけ転ぶ');
+      check(qa.snapshot.calls===1,'転んだ瞬間に声を再生する');
+      if(preview==='fall'){result.textContent='転ぶ場面（確認用・保存データは別）';return;}
+      qa.step(2.5);
+      check(p.kind==='missed'&&p.departed&&qa.snapshot.people.includes(p),'起き上がってホームに残る');
+      check(qa.snapshot.state==='running'&&qa.snapshot.pos>0&&!qa.snapshot.busy,'乗り遅れた人がいても発車できる');
+      check(qa.snapshot.calls===1,'声を繰り返さない');
+      if(preview==='missed'){result.textContent='見送る場面（確認用・保存データは別）';return;}
+      qa.step(2.7);check(p.kind==='away'||!qa.snapshot.people.includes(p),'見送りのあとホームを離れる');
+      for(let i=0;i<90&&qa.snapshot.state!=='stopped';i++)qa.step(.5);
+      press('pointerup');check(qa.snapshot.state==='stopped'&&qa.snapshot.pos>0,'次の駅で正常に停車する');
+      check(!qa.snapshot.people.includes(p),'離れたホームの演出を片づける');
+      const duration=await qa.audio();check(duration>.05&&duration<1,'埋め込み音声をブラウザでデコードできる');
+      check(errors.length===0,'実行時エラーなし');
+    }
+    check(localStorage.getItem('shk')===realSave,'既存の保存データを変更しない');
+    result.textContent+='\n'+count+' checks passed';
+  }catch(e){result.textContent+='\nFAIL '+e.stack;}
+  finally{localStorage.removeItem(key);run.disabled=false;}
+};
+if(preview)run.click();
+</script>

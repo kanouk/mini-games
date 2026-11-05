@@ -21,6 +21,7 @@
 - 区間ごとの最高速度、0時〜6時は新幹線区間を走らないルール
 - 区間ごとの景色、時刻による空の色、現在地の地図
 - 駅での乗り降り、車体の色えらび、全画面表示
+- 停車の約8％で、乗ろうとした人が1人だけつまずき、「あっ！」と声を出します。起き上がって電車を見送ります。音声は西武線ゲームと共通で、「おと」設定に従います。
 
 ## ファイル
 
@@ -28,6 +29,7 @@
 |---|---|
 | `shinkansen.html` | ゲーム本体（HTML・CSS・JavaScriptを1ファイルにまとめたもの） |
 | `tests/schedule.test.js` | 時刻のルールを確かめる自動テスト |
+| `tests/passengers.browser.html` | つまずき・見送り・次駅への運転を確かめるブラウザテスト |
 
 ## テスト
 
@@ -35,6 +37,8 @@
 node tests/schedule.test.js
 node tests/emergency.test.js
 ```
+
+ブラウザテストは HTTP サーバー経由で `tests/passengers.browser.html` を開いて実行します。`?preview=fall`・`?preview=missed` で演出を静止表示できます。本番用の保存データは変更しません。
 
 ## 注意
 
