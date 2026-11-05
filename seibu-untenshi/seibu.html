@@ -1,0 +1,1883 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>せいぶせん うんてんし</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@500;800&display=swap">
+<style>
+/* 1画面ゲーム：上＝景色（キャンバス）＋車内表示器、下＝大きな操作ボタン。世界観に合わせた単一テーマ */
+:root{
+  --sky:#8fd0ff;
+  --night:#14213d;
+  --panel:#ffffff;
+  --ink:#14213d;
+  --go:#ffcf33;
+  --go-ink:#3a2a00;
+  --horn:#ff8a3d;
+  --chip:#24365e;
+  --chip-on:#3d8bff;
+  --rail:#c3ccd9;
+  --led-bg:#121212;
+  --led:#ffb21e;
+  --led-dim:#5a3c06;
+  --font:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+  --dot:"DotGothic16","MS Gothic","Osaka-Mono",monospace;
+  color-scheme:light;
+}
+html,body{height:100%;margin:0}
+body{background:var(--night);color:var(--panel);font-family:var(--font);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+.app{position:relative;height:100%;display:flex;flex-direction:column}
+.stage{position:relative;flex:1;min-height:0;background:var(--sky);overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:pointer}
+
+.hud{position:absolute;top:10px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;gap:12px;align-items:flex-start;pointer-events:none}
+.fs-ipad .hudMain>.row:first-child{padding-left:65px}
+.hudMain{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.pill{background:var(--panel);color:var(--ink);border-radius:18px;padding:6px 14px;box-shadow:0 2px 0 rgba(20,33,61,.18)}
+.speed{display:flex;align-items:baseline;gap:6px}
+.speed b{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;min-width:2.2em;text-align:right;line-height:1.1}
+.speed small{font-size:14px;font-weight:500}
+.speed .max{font-size:12px;color:#4b5873;margin-left:4px}
+.lineinfo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:17px;min-width:0}
+.lineinfo i{width:14px;height:14px;border-radius:50%;background:var(--lc,#3d8bff);flex:none}
+.lineinfo small{font-weight:500;font-size:14px}
+.led{background:var(--led-bg);border:3px solid #3a3a3a;border-radius:10px;height:46px;overflow:hidden;position:relative;
+  font-family:var(--dot);color:var(--led);font-size:26px;line-height:40px;white-space:nowrap;
+  background-image:radial-gradient(var(--led-dim) 0.8px,transparent 1px);background-size:4px 4px}
+.led span{display:inline-block;padding-left:100%;animation:ledscroll var(--dur,12s) linear infinite;text-shadow:0 0 6px rgba(255,178,30,.55)}
+@keyframes ledscroll{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+.route{position:absolute;bottom:6px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;align-items:center;gap:10px;font-size:15px;font-weight:800;pointer-events:none;padding-block:4px}
+.route .line{position:relative;flex:1;height:8px;border-radius:4px;background:var(--rail);min-width:0;margin:0 29px}
+.route .tmark{position:absolute;top:50%;width:58px;height:24px;margin:-13px 0 0 -29px;left:0;overflow:visible}
+.tmark .b{fill:var(--low,#f7f9fb);stroke:#5b6676;stroke-width:.8}
+.tmark .u{fill:var(--up,#f7f9fb)}.tmark .l{fill:var(--line,#d6283c)}.tmark .w{fill:#2c3a4f}
+.map{align-self:flex-end;flex:none;width:min(34vw,220px,34vh);
+  background:var(--panel);border-radius:16px;padding:6px;box-shadow:0 3px 0 rgba(20,33,61,.18);pointer-events:none}
+.map canvas{display:block;width:100%;aspect-ratio:1;max-width:100%;border-radius:10px}
+.map small{display:block;color:#4b5873;font-size:10px;text-align:center;margin-top:2px}
+.banner{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:56px;pointer-events:none;
+  background:rgba(20,33,61,.92);color:#fff;border-radius:16px;padding:8px 18px 10px;box-shadow:0 4px 12px rgba(0,0,0,.25);
+  display:flex;flex-direction:column;gap:1px;border-left:6px solid var(--lc,#ffcf33)}
+.banner[hidden]{display:none}
+.banner small{font-size:13px;font-weight:800;letter-spacing:.12em;color:#c9d3e6}
+.banner b{font-size:clamp(28px,6vw,40px);font-weight:800;line-height:1.1;color:#ffe08a;font-variant-numeric:tabular-nums}
+.banner span{white-space:nowrap;font-size:clamp(14px,3.6vw,17px);font-weight:800}
+
+.bar{display:flex;flex-wrap:wrap;gap:12px;padding-block:12px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button{font-family:var(--font);border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.go,.horn,canvas{touch-action:none}
+button:focus-visible{outline:4px solid var(--panel);outline-offset:3px}
+/* うんてんの ボタン：act（きほん）＋ main（おおきい 3つ）／ sub（ちいさい 2つ）。いろは --bg と --sh で きりかえる */
+.act{min-height:92px;border-radius:24px;background:var(--bg);color:#fff;font-weight:800;box-shadow:0 6px 0 var(--sh);white-space:nowrap}
+.act:active{transform:translateY(4px);box-shadow:0 2px 0 var(--sh)}
+.act.main{flex:1 1 0;min-width:120px;padding:0 8px;font-size:clamp(16px,2.1vw,26px)}
+.act.sub{flex:0 0 auto;min-width:92px;padding:0 14px;font-size:clamp(15px,1.8vw,19px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.act.sub svg{width:34px;height:34px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.go{--bg:var(--go);--sh:#c99a00;color:var(--go-ink)}
+.go.held{transform:translateY(4px);box-shadow:0 2px 0 var(--sh)}
+.go.wait{--bg:#e6e9ef;--sh:#a9b0bd;color:#5b6475}
+.annbtn{--bg:#2aa59a;--sh:#1b7a71}
+.crewbtn{--bg:#5b5fc7;--sh:#3e419a}
+.horn{--bg:var(--horn);--sh:#c45e1d}
+.ebtn{--bg:#d62839;--sh:#9c1626}
+.ebtn:disabled{--bg:#4a2a35;--sh:#2e1a20;color:#a88c94;cursor:default;transform:none}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:62%;overflow-y:auto;z-index:5;background:rgba(20,33,61,.97);
+  border-radius:22px 22px 0 0;box-shadow:0 -6px 18px rgba(0,0,0,.3);
+  padding-block:14px max(14px,env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.app:has(.sheet:not([hidden])) .banner{display:none}
+.sheet h2{margin:0 0 10px;font-size:22px;font-weight:800;text-align:center}
+.sheet .close{margin-top:12px;min-height:54px}
+.ann.em{border-left-color:#d62839;flex-direction:row;align-items:center;justify-content:flex-start;gap:12px}
+.ann.em .eic{width:44px;height:44px;flex:none;padding:8px;border-radius:50%;background:#fde4e6;color:#d62839;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;box-sizing:border-box}
+.ann.em .etx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ann.em small{white-space:nowrap;font-size:12px;line-height:1.5}
+.ann.crew{border-left-color:#5b5fc7}
+.anngrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;max-width:820px;margin:0 auto}
+.ann{min-height:84px;border-radius:18px;background:var(--panel);color:var(--ink);font-size:20px;font-weight:800;padding:8px 14px;text-align:left;display:flex;flex-direction:column;justify-content:center;gap:2px;border-left:10px solid #2aa59a}
+.ann small{font-size:13px;font-weight:500;color:#4b5873}
+.ann.playing{background:#dff5f2}
+.opts{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;align-content:center}
+.opt{width:66px;height:66px;padding:4px 2px;border-radius:16px;background:var(--chip);color:#fff;font-weight:800;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.opt svg{width:28px;height:28px;flex:none;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.opt span{font-size:11px;line-height:1.1;white-space:nowrap}
+.opt[aria-pressed="true"]{background:var(--chip-on)}
+.painter .box{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.preview{background:var(--sky);border-radius:16px;overflow:hidden}
+.preview canvas{display:block;width:100%;height:auto;aspect-ratio:420/90;max-width:100%}
+.part h3{margin:0 0 6px;font-size:18px;font-weight:800}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.sw{width:46px;height:46px;border-radius:50%;border:3px solid rgba(255,255,255,.35);background:var(--c);position:relative}
+.sw[aria-pressed="true"]{border:4px solid var(--go);box-shadow:0 0 0 3px var(--night) inset}
+.reset{min-height:60px;min-width:160px;border-radius:18px;background:var(--chip);color:#fff;font-size:20px;font-weight:800}
+
+.trip{padding-block:0 !important}
+.tripbox{max-width:980px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
+.triphead{display:flex;align-items:center;gap:10px;padding:16px 4px 12px}
+.triphead i{width:16px;height:16px;border-radius:50%;background:var(--lc)}
+.triphead h2{margin:0;font-size:24px;text-align:left}
+.tripgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;flex:1}
+@media (max-width:720px){.tripgrid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);color:var(--ink);border-radius:18px;padding:14px}
+.card h3{margin:0 0 10px;font-size:15px;font-weight:800;color:#4b5873}
+.kinds{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;background:#eef2f8;padding:4px;border-radius:14px}
+.kinds button{min-height:46px;border-radius:11px;background:transparent;color:#4b5873;font-size:15px;font-weight:800;padding:0 6px}
+.kinds button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(20,33,61,.18)}
+.strow.pass .dot{width:10px;height:10px;margin:-5px 0 0 -5px;border-width:2px}
+.strow.pass .nm b{font-size:15px;font-weight:500}
+.strow .ps{margin-left:auto;font-size:11px;color:#8a94a6}
+.ends{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:stretch}
+.endcard{background:#eef2f8;color:var(--ink);border-radius:14px;padding:8px 10px;text-align:left;border:3px solid transparent;display:flex;flex-direction:column;gap:1px;min-width:0}
+.endcard small{font-size:12px;font-weight:800;color:#4b5873}
+.endcard b{font-size:22px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.endcard span{font-size:12px;color:#4b5873;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.endcard[aria-pressed="true"]{border-color:var(--lc);background:#fff}
+.swap{width:46px;border-radius:14px;background:#eef2f8;color:var(--ink);display:grid;place-items:center}
+.swap svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.hint{margin:10px 2px 6px;font-size:13px;font-weight:800;color:#4b5873}
+.stlist{list-style:none;margin:0;padding:0;max-height:min(52vh,560px);overflow-y:auto;border-radius:12px;background:#f6f8fb}
+.strow{position:relative;width:100%;display:flex;align-items:center;gap:12px;padding:7px 12px 7px 44px;background:none;color:var(--ink);text-align:left;min-height:46px}
+.strow::before{content:"";position:absolute;left:22px;top:0;bottom:0;width:5px;margin-left:-2.5px;background:#cfd6e0}
+li:first-child>.strow::before{top:50%}li:last-child>.strow::before{bottom:50%}
+.strow.in::before{background:var(--lc)}
+.strow .dot{position:absolute;left:22px;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:#fff;border:3px solid #b3bdcb;box-sizing:border-box}
+.strow.in .dot{border-color:var(--lc)}
+.strow.end .dot{width:22px;height:22px;margin:-11px 0 0 -11px;background:var(--lc);border-color:#fff;box-shadow:0 0 0 2px var(--lc)}
+.strow .nm{display:flex;flex-direction:column;min-width:0}
+.strow .nm b{font-size:18px;font-weight:800}
+.strow .nm small{font-size:11px;color:#4b5873}
+.strow:not(.in) .nm{opacity:.55}
+.strow .tag{margin-left:auto;font-size:12px;font-weight:800;color:#fff;background:var(--lc);border-radius:999px;padding:3px 10px}
+.strow:hover{background:#eaf0f8}
+.timecard .trow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto repeat(2,minmax(0,1fr));gap:6px;align-items:center}
+@media (max-width:460px){.timecard .trow{grid-template-columns:repeat(4,minmax(0,1fr))}.timecard .tbig{grid-column:1/-1;order:-1;justify-self:center}}
+.tstep{min-height:54px;min-width:0;padding:0 2px;white-space:nowrap;border-radius:14px;background:#e3e9f3;color:var(--ink);font-size:15px;font-weight:800;touch-action:manipulation}
+.tstep:active{transform:translateY(2px)}
+.tstep:disabled{opacity:.35;cursor:default}
+.tbig{text-align:center;font-size:42px;font-weight:800;font-variant-numeric:tabular-nums;padding:0 8px;line-height:1.1}
+.ttquick{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.ttquick button{min-height:40px;padding:0 12px;white-space:nowrap;border-radius:999px;background:#eef2f8;color:var(--ink);font-size:14px;font-weight:800;touch-action:manipulation}
+.ttrange{margin:8px 0 0;font-size:13px;color:#4b5873}
+.sumcard{margin-top:16px}
+.sumline{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.sumline .pt b{display:block;font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.sumline .pt span{font-size:15px;font-weight:800}
+.sumline .pt:last-child{text-align:right}
+.sumline .ar{height:6px;border-radius:3px;background:var(--lc);position:relative}
+.sumline .ar::after{content:"";position:absolute;right:-2px;top:50%;margin-top:-8px;border:8px solid transparent;border-left:12px solid var(--lc);border-right:0}
+.summeta{margin:10px 0 0;font-size:14px;color:#4b5873;text-align:center}
+/* ぜんがめんの パネル：したに とじる・きめる ボタンを いつも だす */
+.pbar{position:sticky;bottom:0;z-index:2;display:flex;gap:10px;justify-content:flex-end;max-width:980px;margin:16px auto 0;padding:14px 0 max(14px,env(safe-area-inset-bottom,0px));background:linear-gradient(rgba(20,33,61,0),rgba(20,33,61,.97) 30%)}
+.pbar .close{margin:0;min-width:0;flex:0 1 320px;white-space:nowrap;padding:0 18px;font-size:clamp(17px,4.6vw,22px)}
+.pbar .reset{flex:none;min-width:96px;padding:0 16px;font-size:clamp(17px,4.6vw,20px)}
+.tripsum{text-align:center;margin:6px 0 12px;font-size:20px;font-weight:800;color:#fff}
+.picker,.painter{position:absolute;inset:0;background:rgba(20,33,61,.96);overflow-y:auto;z-index:5;
+  padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.clock{display:flex;align-items:baseline;gap:6px}
+.clock b{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.clock small{font-size:13px;font-weight:500}
+.ttwrap{max-width:560px;margin:14px auto 0;overflow-x:auto;border-radius:12px}
+.ttable{width:100%;border-collapse:collapse;background:var(--panel);color:var(--ink);font-variant-numeric:tabular-nums}
+.ttable th{background:#e6ebf3;font-size:15px;padding:8px 12px;text-align:left}
+.ttable td{font-size:19px;font-weight:800;padding:7px 12px;border-top:1px solid #e3e8f0}
+.ttable td small{display:block;font-size:11px;font-weight:500;color:#4b5873}
+.ttable td small.late{color:#d62839;font-weight:800}
+.ttable tr.now td{background:#fff1bf}
+.ttable tr.pass td{color:#8a94a6;font-weight:500}
+.ttable .t{text-align:right;width:5.5em}
+.picker h2,.painter h2{margin:0 0 14px;font-size:clamp(19px,5.4vw,26px);font-weight:800;text-align:center;white-space:nowrap}
+.grid{padding-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;max-width:980px;margin:0 auto}
+.lineBtn{min-height:84px;border-radius:18px;background:var(--panel);color:var(--ink);text-align:left;padding:10px 14px 10px 22px;
+  position:relative;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.lineBtn::before{content:"";position:absolute;left:0;top:0;bottom:0;width:10px;border-radius:18px 0 0 18px;background:var(--lc)}
+.lineBtn b{font-size:22px;font-weight:800;white-space:nowrap}
+.lineBtn.thru b{font-size:clamp(17px,1.9vw,20px)}
+.gridhead{grid-column:1/-1;margin:10px 0 -2px;font-size:17px;font-weight:800;color:#ffe08a}
+.lineBtn small{font-size:13px;font-weight:500;color:#4b5873}
+.lineBtn[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--lc)}
+.lineBtn[aria-pressed="true"]::after{content:"のっている";position:absolute;top:-10px;right:12px;box-shadow:0 2px 0 rgba(0,0,0,.15);font-size:12px;font-weight:800;color:#fff;background:var(--lc);border-radius:999px;padding:2px 9px}
+.close{display:block;margin:18px auto 0;min-height:60px;min-width:200px;border-radius:18px;background:var(--go);color:var(--go-ink);font-size:22px;font-weight:800}
+@media (prefers-reduced-motion:reduce){
+  .led span{animation:none;padding-left:8px;white-space:normal;font-size:20px;line-height:1.2}
+  .led{height:auto;min-height:46px;white-space:normal}
+}
+@media (max-width:520px){.act.main{flex-basis:28%;min-width:0;font-size:15px;padding:0 4px}.act.sub{flex:1 1 40%;min-height:64px;flex-direction:row}}
+/* スマホ：うえの ひょうじを ちいさく。じこくと はやさを 1ぎょうに、ちずは ちいさく して おすと おおきく なる */
+@media (max-width:640px){
+  .hud{gap:8px}
+  .hudMain{gap:6px}
+  .hudMain>.row:first-child{flex-wrap:wrap;gap:6px;justify-content:flex-start}
+  .pill{padding:4px 9px;border-radius:14px}
+  .clock,.speed{gap:3px}
+  .clock b{font-size:20px}.clock small{font-size:11px}
+  .speed b{font-size:22px;min-width:1.6em}.speed small{font-size:11px}.speed .max{font-size:10px;margin-left:2px}
+  .lineinfo{font-size:14px;gap:6px}.lineinfo small{font-size:12px}.lineinfo i{width:10px;height:10px}
+  .led{height:36px;font-size:19px;line-height:30px}
+  .map{position:absolute;top:40px;right:0;width:76px;padding:3px;border-radius:12px;pointer-events:auto;cursor:pointer}
+  .led{margin-right:84px}
+  .lineinfo{max-width:calc(100% - 88px)}
+  .lineinfo span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .map small{display:none}
+  .map.big{top:0;width:min(82vw,320px);padding:6px;z-index:3}
+  .map.big small{display:block}
+}
+/* タイトル がめん：けしきが うしろへ ながれて、しんかんせんが はしって いるように みせる */
+.title{position:absolute;inset:0;z-index:7;overflow:hidden;background:linear-gradient(var(--sky),#d8f0ff 75%);color:var(--ink);
+  --h:clamp(80px,min(30vw,26vh),150px);--gh:clamp(28px,7vh,64px)}
+.tcloud{position:absolute;left:100%;width:150px;height:46px;border-radius:999px;background:#fff;animation:tcloud linear infinite}
+.tcloud::before,.tcloud::after{content:"";position:absolute;background:#fff;border-radius:50%}
+.tcloud::before{width:64px;height:64px;left:22px;top:-30px}
+.tcloud::after{width:48px;height:48px;left:72px;top:-20px}
+.tcloud.k1{top:9%;animation-duration:26s;animation-delay:-4s}
+.tcloud.k2{top:24%;scale:.7;animation-duration:34s;animation-delay:-20s}
+.tcloud.k3{top:40%;scale:.85;animation-duration:30s;animation-delay:-13s}
+@keyframes tcloud{to{left:-200px}}
+.tmt{position:absolute;left:0;right:0;background-repeat:repeat-x;background-position-x:0;animation:tmt linear infinite}
+.tmt.far{bottom:calc(var(--gh) + var(--h)*.19);height:calc(var(--h)*1.1);background-size:auto 100%;animation-duration:40s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 120'%3E%3Cpath d='M0 120V70L80 30l70 45 90-55 90 50 90-35 100 45 80-10v50z' fill='%23a9d3ee'/%3E%3Cpath d='M240 20l-22 13 12 4 10-6 12 6 10-4z' fill='%23fff'/%3E%3C/svg%3E")}
+.tmt.near{bottom:calc(var(--gh) + var(--h)*.19);height:calc(var(--h)*.6);background-size:auto 100%;animation-duration:12s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 120'%3E%3Cpath d='M0 120V80q75-40 150 0t150 0 150 0 150 0v40z' fill='%237cc576'/%3E%3C/svg%3E")}
+@keyframes tmt{to{background-position-x:-1000px}}
+.ttrack{position:absolute;left:0;right:0;bottom:var(--gh);height:calc(var(--h)*.19);background:
+  linear-gradient(#7b8494 0 18%,transparent 18%),
+  repeating-linear-gradient(90deg,#7a6650 0 12px,transparent 12px 44px) 0 0/auto 100% repeat-x,#9c9488;animation:ttrack .3s linear infinite}
+@keyframes ttrack{to{background-position:0 0,-44px 0,0 0}}
+.tground{position:absolute;left:0;right:0;bottom:0;height:var(--gh);background:#7cc576}
+#tcv{position:absolute;bottom:var(--gh);height:var(--h);width:calc(var(--h)*18.889);right:calc(6vw - var(--h)*2.244);animation:tbob 1.1s ease-in-out infinite}
+@keyframes tbob{50%{transform:translateY(-1.5px)}}
+.tfront{position:absolute;inset:0;bottom:calc(var(--gh) + var(--h)*1.1);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,3vh,28px);
+  padding:52px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px))}
+.tback{position:absolute;top:max(12px,env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.85);color:var(--ink);text-decoration:none;font-weight:800;font-size:15px;padding:8px 14px;border-radius:999px;box-shadow:0 3px 0 rgba(20,33,61,.18)}
+.tback::before{content:"";width:9px;height:9px;border-left:3px solid currentColor;border-bottom:3px solid currentColor;transform:rotate(45deg);margin-left:3px}
+.tback:focus-visible{outline:4px solid var(--go);outline-offset:3px}
+.tlogo{margin:0;display:flex;flex-direction:column;align-items:center;line-height:1;text-align:center}
+.tlogo .t1{display:inline-block;background:#3d8bff;color:#fff;font-size:clamp(18px,min(5.6vw,5.4vh),36px);font-weight:800;letter-spacing:.14em;padding:.25em .7em .25em .84em;border-radius:999px;
+  border:3px solid var(--ink);box-shadow:0 4px 0 var(--ink);rotate:-3deg}
+.tlogo .t2{margin-top:.12em;font-size:clamp(46px,min(15vw,14vh),112px);font-weight:800;white-space:nowrap}
+.tlogo .t2 span{display:inline-block;color:#fff;-webkit-text-stroke:.09em var(--ink);paint-order:stroke fill;text-shadow:0 .08em 0 var(--ink),0 .14em 0 #ffcf33;animation:thop 1.8s ease-in-out infinite}
+.tlogo .t2 span:nth-child(2){animation-delay:.12s}
+.tlogo .t2 span:nth-child(3){animation-delay:.24s}
+.tlogo .t2 span:nth-child(4){animation-delay:.36s}
+.tlogo .t2 span:nth-child(5){animation-delay:.48s}
+@keyframes thop{0%,55%,100%{transform:translateY(0)}25%{transform:translateY(-.12em)}}
+.tbtns{display:flex;flex-wrap:wrap;gap:14px 18px;justify-content:center;align-items:center}
+.tstart{display:inline-flex;align-items:center;gap:12px;min-height:clamp(64px,11vh,92px);padding:0 clamp(30px,6vw,52px);border-radius:999px;background:var(--go);color:var(--go-ink);
+  font-size:clamp(26px,min(7vw,6.5vh),40px);font-weight:800;border:4px solid var(--ink);box-shadow:0 7px 0 var(--ink);animation:tpulse 1.6s ease-in-out infinite}
+.tstart::after{content:"";border-left:.5em solid currentColor;border-top:.32em solid transparent;border-bottom:.32em solid transparent}
+.tstart:active{transform:translateY(5px);box-shadow:0 2px 0 var(--ink);animation:none}
+@keyframes tpulse{50%{scale:1.05}}
+.tpick{display:inline-flex;align-items:center;gap:8px;min-height:clamp(52px,8vh,64px);padding:0 22px;border-radius:999px;background:var(--panel);color:var(--ink);
+  font-size:clamp(17px,min(4.6vw,4.4vh),22px);font-weight:800;border:3px solid var(--ink);box-shadow:0 5px 0 var(--ink)}
+.tpick svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.tpick:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
+.title button:focus-visible{outline:5px solid #fff;outline-offset:4px}
+@media (prefers-reduced-motion:reduce){.title *,.title *::before,.title *::after{animation:none!important}}
+/* ---------- せいぶせん ついか：しゅべつ・しゃりょう ---------- */
+.tb{display:inline-block;border-radius:6px;padding:1px 7px;font-weight:800;color:#fff;background:var(--tc,#555);white-space:nowrap;line-height:1.4}
+.lineinfo .tb{font-size:14px}
+.types{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:6px;margin-bottom:10px}
+.types button{min-height:54px;border-radius:12px;background:#eef2f8;color:var(--ink);text-align:left;padding:6px 10px;display:flex;flex-direction:column;justify-content:center;gap:2px;border:3px solid transparent}
+.types button b{font-size:17px;font-weight:800;color:var(--tc)}
+.types button small{font-size:11px;color:#4b5873;line-height:1.3}
+.types button[aria-pressed="true"]{background:#fff;border-color:var(--tc)}
+.types button:disabled{opacity:.45;cursor:default}
+.sers{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.sers button{min-height:44px;border-radius:999px;background:#eef2f8;color:var(--ink);font-size:14px;font-weight:800;padding:0 12px 0 6px;display:inline-flex;align-items:center;gap:6px;border:3px solid transparent}
+.sers button i{width:22px;height:22px;border-radius:50%;background:var(--sc);box-shadow:inset 0 -7px 0 var(--sc2)}
+.sers button[aria-pressed="true"]{background:#fff;border-color:var(--lc)}
+.card h3.sub{margin-top:4px}
+.nogo{margin:8px 2px 0;font-size:14px;font-weight:800;color:#d62839}
+.close:disabled{opacity:.4;cursor:default}
+.strow .num{font-size:10px;font-weight:800;color:#fff;background:var(--nc,#888);border-radius:5px;padding:1px 4px;margin-right:2px;vertical-align:1px}
+.serinfo{background:var(--panel);color:var(--ink);border-radius:16px;padding:12px 14px;font-size:15px;line-height:1.6}
+.serinfo b{font-size:20px}
+.serlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.serlist button{min-height:64px;border-radius:16px;background:var(--panel);color:var(--ink);text-align:left;padding:8px 12px 8px 50px;position:relative;font-size:17px;font-weight:800;display:flex;flex-direction:column;justify-content:center;border:3px solid transparent}
+.serlist button i{position:absolute;left:12px;top:50%;margin-top:-15px;width:30px;height:30px;border-radius:50%;background:var(--sc);box-shadow:inset 0 -10px 0 var(--sc2)}
+.serlist button small{font-size:12px;font-weight:500;color:#4b5873}
+.serlist button[aria-pressed="true"]{border-color:var(--go)}
+.tlogo .t1{background:#1f5fbf}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-route" viewBox="0 0 28 28"><path d="M5 22 C9 22 9 14 14 14 S19 6 23 6"/><circle cx="5" cy="22" r="2.6" fill="currentColor"/><circle cx="14" cy="14" r="2.6" fill="currentColor"/><circle cx="23" cy="6" r="2.6" fill="currentColor"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 28 28"><circle cx="14" cy="14" r="10"/><path d="M14 8v6l4 3"/></symbol>
+  <symbol id="i-map" viewBox="0 0 28 28"><path d="M4 7l6-3 8 3 6-3v17l-6 3-8-3-6 3z"/><path d="M10 4v17M18 7v17"/></symbol>
+  <symbol id="i-auto" viewBox="0 0 28 28"><path d="M22 10a9 9 0 1 0 1 7"/><path d="M23 4v6h-6"/><path d="M12 10.5v7l6-3.5z" fill="currentColor"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 28 28"><path d="M4 11h4l6-5v16l-6-5H4z" fill="currentColor"/><path d="M18 10.5a5 5 0 0 1 0 7M21 7.5a9 9 0 0 1 0 13"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 28 28"><path d="M4 11h4l6-5v16l-6-5H4z" fill="currentColor"/><path d="M18 11l6 6M24 11l-6 6"/></symbol>
+  <symbol id="i-full" viewBox="0 0 28 28"><path d="M4 10V4h6M18 4h6v6M24 18v6h-6M10 24H4v-6"/></symbol>
+  <symbol id="i-exit" viewBox="0 0 28 28"><path d="M10 4v6H4M24 10h-6V4M18 24v-6h6M4 18h6v6"/></symbol>
+  <symbol id="i-horn" viewBox="0 0 28 28"><path d="M3 11.5v4M3 13.5h10"/><path d="M13 11c4 0 7.5-2.5 11-6v17c-3.5-3.5-7-6-11-6z" fill="currentColor"/><path d="M6 13.5c0-2.5 1.5-4 4-4"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 28 28"><path d="M9.5 3h9L25 9.5v9L18.5 25h-9L3 18.5v-9z"/><path d="M14 8.5v7"/><circle cx="14" cy="19.5" r="1.4" fill="currentColor"/></symbol>
+  <symbol id="e-person" viewBox="0 0 28 28"><circle cx="14" cy="7" r="3"/><path d="M8 23v-6a6 6 0 0 1 12 0v6M11 17v8M17 17v8"/></symbol>
+  <symbol id="e-paw" viewBox="0 0 28 28"><ellipse cx="14" cy="18.5" rx="5.5" ry="4.5" fill="currentColor"/><circle cx="7" cy="12" r="2.4" fill="currentColor"/><circle cx="11.5" cy="7.5" r="2.4" fill="currentColor"/><circle cx="16.5" cy="7.5" r="2.4" fill="currentColor"/><circle cx="21" cy="12" r="2.4" fill="currentColor"/></symbol>
+  <symbol id="e-wind" viewBox="0 0 28 28"><path d="M3 10h14a3.5 3.5 0 1 0-3.5-3.5"/><path d="M3 15h20a3.5 3.5 0 1 1-3.5 3.5"/><path d="M3 20h9"/></symbol>
+  <symbol id="e-rock" viewBox="0 0 28 28"><path d="M4 21l3-8 6-4 6 2 4 6-2 4z" fill="currentColor"/><path d="M2 24h24"/></symbol>
+  <symbol id="e-rain" viewBox="0 0 28 28"><path d="M8 15a5 5 0 0 1 .5-10 6.5 6.5 0 0 1 12.3 2.2A4 4 0 0 1 20 15z"/><path d="M9 19l-1.5 4M14 19l-1.5 4M19 19l-1.5 4"/></symbol>
+  <symbol id="e-snow" viewBox="0 0 28 28"><path d="M14 3v22M4.5 8.5l19 11M23.5 8.5l-19 11"/><path d="M11 5l3 3 3-3M11 23l3-3 3 3"/></symbol>
+  <symbol id="e-quake" viewBox="0 0 28 28"><path d="M2 14h5l2-6 3 12 3-15 3 15 2-6h6"/></symbol>
+  <symbol id="e-sos" viewBox="0 0 28 28"><circle cx="14" cy="14" r="10"/><circle cx="14" cy="14" r="5.5" fill="currentColor"/></symbol>
+  <symbol id="e-power" viewBox="0 0 28 28"><path d="M15.5 3L7 15.5h6L11.5 25 21 12h-6.5z" fill="currentColor"/><path d="M4 4l20 20"/></symbol>
+  <symbol id="e-cross" viewBox="0 0 28 28"><path d="M5 5l18 11M23 5L5 16"/><path d="M14 10.5V25M9 25h10"/></symbol>
+  <symbol id="i-home" viewBox="0 0 28 28"><path d="M4 13.5L14 5l10 8.5"/><path d="M7 11.5V23h14V11.5"/><path d="M12 23v-6h4v6"/></symbol>
+  <symbol id="i-train" viewBox="0 0 28 28"><rect x="6" y="3" width="16" height="18" rx="4"/><path d="M6 12h16M10 25l2-4M18 25l-2-4"/><circle cx="10" cy="16.5" r="1.3" fill="currentColor"/><circle cx="18" cy="16.5" r="1.3" fill="currentColor"/></symbol>
+</svg>
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="cv" aria-label="せいぶせんが はしる けしき。おすと すすみます"></canvas>
+    <div class="hud">
+      <div class="hudMain">
+      <div class="row">
+        <div class="pill clock"><small>じこく</small><b id="clock">6:00</b></div>
+        <div class="pill speed"><b id="kmh">0</b><small>km/h</small><small class="max" id="maxKmh">さいこう 105</small></div>
+        <div class="pill lineinfo" id="lineinfo"><span class="tb" id="typeBadge">各停</span><span id="lineName">池袋線</span><small id="destName">飯能ゆき</small></div>
+      </div>
+      <div class="led" role="status" aria-live="polite"><span id="ledText">西武線に ようこそ</span></div>
+      </div>
+      <div class="map" id="map"><canvas id="mapcv" aria-label="いま どこを はしっているかの ちず"></canvas><small>ちずの いちは おおまかです</small></div>
+    </div>
+    <div class="pill route" id="route"><span id="fromName">池袋</span><div class="line"><svg class="tmark" id="dot" viewBox="0 0 44 18" aria-hidden="true">
+      <rect class="b" x="1" y="2" width="42" height="14" rx="2.5"/><rect class="u" x="1.5" y="2.5" width="41" height="4"/><rect class="l" x="1.5" y="10" width="41" height="2.4"/>
+      <rect class="w" x="5" y="5" width="4" height="4" rx=".6"/><rect class="w" x="13" y="5" width="4" height="4" rx=".6"/><rect class="w" x="21" y="5" width="4" height="4" rx=".6"/><rect class="w" x="29" y="5" width="4" height="4" rx=".6"/><rect class="w" x="37" y="4.5" width="4.5" height="5" rx=".6"/>
+      <circle cx="9" cy="17" r="1.6" fill="#1c2027"/><circle cx="35" cy="17" r="1.6" fill="#1c2027"/></svg></div><span id="toName">椎名町</span></div>
+    <div class="banner" id="banner" role="status"><small id="bannerLabel">しゅっぱつ</small><b id="bannerTime">6:00</b><span id="bannerSub">しゅっぱつ！を おしてね</span></div>
+  </div>
+  <div class="bar">
+    <button id="go" class="act main go" type="button">しゅっぱつ！</button>
+    <button id="annBtn" class="act main annbtn" type="button">アナウンス</button>
+    <button id="crewBtn" class="act main crewbtn" type="button">しゃしょう</button>
+    <button id="horn" class="act sub horn" type="button" aria-label="ファーン（けいてき）"><svg aria-hidden="true"><use href="#i-horn"/></svg><span>ファーン</span></button>
+    <button id="eBtn" class="act sub ebtn" type="button" disabled aria-label="きんきゅう ていし" title="きんきゅう ていし"><svg aria-hidden="true"><use href="#i-stop"/></svg><span>ていし</span></button>
+    <div class="opts">
+      <button id="pick" class="opt" type="button" aria-label="でんしゃを えらぶ" title="でんしゃを えらぶ"><svg aria-hidden="true"><use href="#i-route"/></svg><span>ろせん</span></button>
+      <button id="ttBtn" class="opt" type="button" aria-label="じこくひょう" title="じこくひょう"><svg aria-hidden="true"><use href="#i-clock"/></svg><span>じこく</span></button>
+      <button id="mapBtn" class="opt" type="button" aria-pressed="true" aria-label="ちずを だす" title="ちずを だす"><svg aria-hidden="true"><use href="#i-map"/></svg><span>ちず</span></button>
+      <button id="auto" class="opt" type="button" aria-pressed="false" aria-label="じどう うんてん" title="じどう うんてん"><svg aria-hidden="true"><use href="#i-auto"/></svg><span>じどう</span></button>
+      <button id="snd" class="opt" type="button" aria-pressed="true" aria-label="おと" title="おと"><svg aria-hidden="true"><use href="#i-sound"/></svg><span>おと</span></button>
+      <button id="fsBtn" class="opt" type="button" aria-pressed="false" hidden aria-label="ぜんがめん" title="ぜんがめん"><svg aria-hidden="true"><use href="#i-full"/></svg><span>ぜんがめん</span></button>
+      <button id="paintBtn" class="opt" type="button" aria-label="しゃりょうを えらぶ" title="しゃりょうを えらぶ"><svg aria-hidden="true"><use href="#i-train"/></svg><span>しゃりょう</span></button>
+      <button id="homeBtn" class="opt" type="button" aria-label="タイトルに もどる" title="タイトルに もどる"><svg aria-hidden="true"><use href="#i-home"/></svg><span>タイトル</span></button>
+    </div>
+  </div>
+  <div class="title" id="title">
+    <div class="tcloud k1"></div><div class="tcloud k2"></div><div class="tcloud k3"></div>
+    <div class="tmt far"></div><div class="tmt near"></div>
+    <div class="ttrack"></div><div class="tground"></div>
+    <canvas id="tcv" width="3400" height="180" aria-hidden="true"></canvas>
+    <div class="tfront">
+      <a class="tback" href="../index.html">ソウスケゲームズ</a>
+      <h1 class="tlogo"><span class="t1">せいぶせん</span><span class="t2" aria-label="うんてんし"><span>う</span><span>ん</span><span>て</span><span>ん</span><span>し</span></span></h1>
+      <div class="tbtns">
+        <button class="tstart" id="tStart" type="button">はじめる</button>
+        <button class="tpick" id="tPick" type="button"><svg aria-hidden="true"><use href="#i-route"/></svg>でんしゃを えらぶ</button>
+      </div>
+    </div>
+  </div>
+  <div class="painter" id="painter" hidden>
+    <div class="box">
+      <h2>どの しゃりょうで はしる？</h2>
+      <div class="preview"><canvas id="pv" width="840" height="180" aria-label="えらんだ しゃりょう"></canvas></div>
+      <div class="serinfo" id="serInfo"></div>
+      <div class="serlist" id="serList"></div>
+      <div class="pbar"><button class="close" id="paintDone" type="button" data-close="painter">とじる</button></div>
+    </div>
+  </div>
+  <div class="sheet" id="ePanel" hidden>
+    <h2>なぜ とまる？</h2>
+    <div class="anngrid" id="eGrid"></div>
+    <button class="close" id="eClose" type="button" data-close="ePanel">とじる</button>
+  </div>
+  <div class="sheet" id="crewPanel" hidden>
+    <h2>しゃしょうさんの こえ</h2>
+    <div class="anngrid" id="crewGrid"></div>
+    <button class="close" id="crewClose" type="button" data-close="crewPanel">とじる</button>
+  </div>
+  <div class="sheet" id="annPanel" hidden>
+    <h2>どの アナウンスを ながす？</h2>
+    <div class="anngrid" id="annGrid"></div>
+    <button class="close" id="annClose" type="button" data-close="annPanel">とじる</button>
+  </div>
+  <div class="picker" id="tt" hidden>
+    <h2>じこくひょう</h2>
+    <p class="tripsum" id="ttSum"></p>
+    <div class="ttwrap"><table class="ttable"><thead><tr><th>えき</th><th class="t">つく</th><th class="t">でる</th></tr></thead><tbody id="ttBody"></tbody></table></div>
+    <div class="pbar"><button class="close" id="ttClose" type="button" data-close="tt">とじる</button></div>
+  </div>
+  <div class="picker trip" id="tripPanel" hidden>
+    <div class="tripbox">
+      <header class="triphead"><i></i><h2 id="tripTitle">池袋線</h2></header>
+      <div class="tripgrid">
+        <section class="card">
+          <h3>しゅべつ（とまる えき）</h3>
+          <div class="types" id="types" role="group" aria-label="しゅべつ"></div>
+          <div class="ends">
+            <button class="endcard" id="endFrom" type="button" data-side="from"><small>のる えき</small><b></b><span></span></button>
+            <button class="swap" id="swapBtn" type="button" aria-label="のる えきと おりる えきを いれかえる" title="いれかえる"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 8h13l-3-3M19 16H6l3 3"/></svg></button>
+            <button class="endcard" id="endTo" type="button" data-side="to"><small>おりる えき</small><b></b><span></span></button>
+          </div>
+          <p class="hint" id="pickHint"></p>
+          <ol class="stlist" id="stList"></ol>
+        </section>
+        <div>
+          <section class="card">
+            <h3>しゃりょう</h3>
+            <div class="sers" id="sers" role="group" aria-label="しゃりょう"></div>
+          </section>
+          <section class="card timecard sumcard">
+            <h3>でる じこく</h3>
+            <div class="trow">
+              <button class="tstep" type="button" data-d="-60" aria-label="1じかん まえ">−1じかん</button>
+              <button class="tstep" type="button" data-d="-5" aria-label="5ふん まえ">−5ふん</button>
+              <b class="tbig" id="ttTime" aria-live="polite">6:00</b>
+              <button class="tstep" type="button" data-d="5" aria-label="5ふん あと">＋5ふん</button>
+              <button class="tstep" type="button" data-d="60" aria-label="1じかん あと">＋1じかん</button>
+            </div>
+            <div class="ttquick"><button type="button" data-q="first">しはつ</button><button type="button" data-q="now">いまの じこく</button><button type="button" data-q="last">しゅうでん</button></div>
+            <p class="ttrange" id="ttRange"></p>
+          </section>
+          <section class="card sumcard">
+            <h3>この でんしゃ</h3>
+            <div class="sumline"><div class="pt"><b id="sumDep"></b><span id="sumFrom"></span></div><div class="ar"></div><div class="pt"><b id="sumArr"></b><span id="sumTo"></span></div></div>
+            <p class="summeta" id="sumMeta"></p>
+            <p class="nogo" id="noGo" hidden></p>
+          </section>
+        </div>
+      </div>
+      <div class="pbar"><button class="reset" id="tripBack" type="button">もどる</button><button class="close" id="tripGo" type="button">この でんしゃに のる！</button></div>
+    </div>
+  </div>
+  <div class="picker" id="picker" hidden>
+    <h2>どの ろせんに のる？</h2>
+    <div class="grid" id="grid"></div>
+    <div class="pbar"><button class="close" id="closePick" type="button" data-close="picker">とじる</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+/* ===== データ =====
+   えき：[かんじ, よみ, ローマじ, えきばんごう, キロ（ろせんの はじめから）, いど, けいど]
+   えきの いち・キロ・えきばんごうは しらべた データ（README の しりょう）から。いど・けいどは ちず用の おおまかな いち */
+const BASE={
+ ikebukuro:{name:'池袋線',kana:'いけぶくろせん',en:'Ikebukuro Line',c:'#ef7a00',sp:105,slow:['飯能',85],scene:{far:'rolling',near:'town'},st:[
+  ['池袋','いけぶくろ','Ikebukuro','SI01',0,35.7291,139.7115],
+  ['椎名町','しいなまち','Shiinamachi','SI02',1.9,35.7266,139.6944],
+  ['東長崎','ひがしながさき','Higashi-Nagasaki','SI03',3.1,35.7300,139.6833],
+  ['江古田','えこだ','Ekoda','SI04',4.3,35.7376,139.6728],
+  ['桜台','さくらだい','Sakuradai','SI05',5.2,35.7388,139.6626],
+  ['練馬','ねりま','Nerima','SI06',6.0,35.7379,139.6544],
+  ['中村橋','なかむらばし','Nakamurabashi','SI07',7.5,35.7368,139.6375],
+  ['富士見台','ふじみだい','Fujimidai','SI08',8.3,35.7359,139.6297],
+  ['練馬高野台','ねりまたかのだい','Nerima-Takanodai','SI09',9.5,35.7406,139.6167],
+  ['石神井公園','しゃくじいこうえん','Shakujii-koen','SI10',10.6,35.7436,139.6070],
+  ['大泉学園','おおいずみがくえん','Oizumi-gakuen','SI11',12.5,35.7494,139.5867],
+  ['保谷','ほうや','Hoya','SI12',14.1,35.7482,139.5678],
+  ['ひばりヶ丘','ひばりがおか','Hibarigaoka','SI13',16.4,35.7515,139.5459],
+  ['東久留米','ひがしくるめ','Higashi-Kurume','SI14',17.8,35.7604,139.5337],
+  ['清瀬','きよせ','Kiyose','SI15',19.6,35.7722,139.5199],
+  ['秋津','あきつ','Akitsu','SI16',21.8,35.7786,139.4965],
+  ['所沢','ところざわ','Tokorozawa','SI17',24.8,35.7866,139.4733],
+  ['西所沢','にしところざわ','Nishi-Tokorozawa','SI18',27.2,35.7893,139.4560],
+  ['小手指','こてさし','Kotesashi','SI19',29.4,35.8005,139.4380],
+  ['狭山ヶ丘','さやまがおか','Sayamagaoka','SI20',31.6,35.8104,139.4170],
+  ['武蔵藤沢','むさしふじさわ','Musashi-Fujisawa','SI21',32.9,35.8210,139.4127],
+  ['稲荷山公園','いなりやまこうえん','Inariyama-koen','SI22',35.9,35.8451,139.3984],
+  ['入間市','いるまし','Irumashi','SI23',36.8,35.8429,139.3903],
+  ['仏子','ぶし','Bushi','SI24',39.7,35.8377,139.3601],
+  ['元加治','もとかじ','Motokaji','SI25',41.0,35.8406,139.3453],
+  ['飯能','はんのう','Hanno','SI26',43.7,35.8512,139.3188],
+  ['東飯能','ひがしはんのう','Higashi-Hanno','SI27',44.5,35.8529,139.3260],
+  ['高麗','こま','Koma','SI28',48.5,35.8820,139.3044],
+  ['武蔵横手','むさしよこて','Musashi-Yokote','SI29',51.3,35.8853,139.2807],
+  ['東吾野','ひがしあがの','Higashi-Agano','SI30',53.8,35.8924,139.2603],
+  ['吾野','あがの','Agano','SI31',57.8,35.9085,139.2268]]},
+ chichibu:{name:'西武秩父線',kana:'ちちぶせん',en:'Chichibu Line',c:'#ef7a00',sp:85,scene:{far:'range',near:'forest'},st:[
+  ['吾野','あがの','Agano','SI31',0,35.9085,139.2268],
+  ['西吾野','にしあがの','Nishi-Agano','SI32',3.6,35.9271,139.2024],
+  ['正丸','しょうまる','Shomaru','SI33',6.3,35.9383,139.1815],
+  ['芦ヶ久保','あしがくぼ','Ashigakubo','SI34',12.4,35.9765,139.1360],
+  ['横瀬','よこぜ','Yokoze','SI35',16.4,35.9855,139.0978],
+  ['西武秩父','せいぶちちぶ','Seibu-Chichibu','SI36',19.0,35.9901,139.0835]]},
+ yurakucho:{name:'西武有楽町線',kana:'ゆうらくちょうせん',en:'Yurakucho Line',c:'#ef7a00',sp:85,scene:{far:'skyline',near:'town'},st:[
+  ['練馬','ねりま','Nerima','SI06',0,35.7379,139.6544],
+  ['新桜台','しんさくらだい','Shin-Sakuradai','SI38',1.4,35.7408,139.6683],
+  ['小竹向原','こたけむかいはら','Kotake-Mukaihara','SI37',2.6,35.7438,139.6786]]},
+ toshima:{name:'豊島線',kana:'としません',en:'Toshima Line',c:'#ef7a00',sp:85,scene:{far:'rolling',near:'town'},st:[
+  ['練馬','ねりま','Nerima','SI06',0,35.7379,139.6544],
+  ['豊島園','としまえん','Toshimaen','SI39',1.0,35.7421,139.6480]]},
+ sayama:{name:'狭山線',kana:'さやません',en:'Sayama Line',c:'#ef7a00',sp:85,scene:{far:'rolling',near:'forest'},st:[
+  ['西所沢','にしところざわ','Nishi-Tokorozawa','SI18',0,35.7893,139.4560],
+  ['下山口','しもやまぐち','Shimo-Yamaguchi','SI40',1.8,35.7794,139.4411],
+  ['西武球場前','せいぶきゅうじょうまえ','Seibukyujo-mae','SI41',4.2,35.7709,139.4197]]},
+ yamaguchi:{name:'山口線',kana:'やまぐちせん',en:'Yamaguchi Line',c:'#e83e3e',sp:50,scene:{far:'lake',near:'forest'},st:[
+  ['多摩湖','たまこ','Tamako','SY01',0,35.7659,139.4427],
+  ['西武園ゆうえんち','せいぶえんゆうえんち','Seibuen-yuenchi','SY02',0.3,35.7690,139.4402],
+  ['西武球場前','せいぶきゅうじょうまえ','Seibukyujo-mae','SY03',2.8,35.7709,139.4197]]},
+ shinjuku:{name:'新宿線',kana:'しんじゅくせん',en:'Shinjuku Line',c:'#00a6bf',sp:105,scene:{far:'rolling',near:'town'},st:[
+  ['西武新宿','せいぶしんじゅく','Seibu-Shinjuku','SS01',0,35.6963,139.7000],
+  ['高田馬場','たかだのばば','Takadanobaba','SS02',2.0,35.7127,139.7037],
+  ['下落合','しもおちあい','Shimo-Ochiai','SS03',3.2,35.7158,139.6954],
+  ['中井','なかい','Nakai','SS04',3.9,35.7151,139.6870],
+  ['新井薬師前','あらいやくしまえ','Araiyakushi-mae','SS05',5.2,35.7158,139.6726],
+  ['沼袋','ぬまぶくろ','Numabukuro','SS06',6.1,35.7195,139.6638],
+  ['野方','のがた','Nogata','SS07',7.1,35.7197,139.6527],
+  ['都立家政','とりつかせい','Toritsu-Kasei','SS08',8.0,35.7223,139.6448],
+  ['鷺ノ宮','さぎのみや','Saginomiya','SS09',8.5,35.7226,139.6389],
+  ['下井草','しもいぐさ','Shimo-Igusa','SS10',9.8,35.7239,139.6247],
+  ['井荻','いおぎ','Iogi','SS11',10.7,35.7247,139.6153],
+  ['上井草','かみいぐさ','Kami-Igusa','SS12',11.7,35.7253,139.6029],
+  ['上石神井','かみしゃくじい','Kami-Shakujii','SS13',12.8,35.7262,139.5923],
+  ['武蔵関','むさしせき','Musashi-Seki','SS14',14.1,35.7276,139.5764],
+  ['東伏見','ひがしふしみ','Higashi-Fushimi','SS15',15.3,35.7288,139.5635],
+  ['西武柳沢','せいぶやぎさわ','Seibu-Yagisawa','SS16',16.3,35.7286,139.5525],
+  ['田無','たなし','Tanashi','SS17',17.6,35.7273,139.5393],
+  ['花小金井','はなこがねい','Hana-Koganei','SS18',19.9,35.7261,139.5132],
+  ['小平','こだいら','Kodaira','SS19',22.6,35.7370,139.4885],
+  ['久米川','くめがわ','Kumegawa','SS20',24.6,35.7496,139.4727],
+  ['東村山','ひがしむらやま','Higashi-Murayama','SS21',26.0,35.7601,139.4658],
+  ['所沢','ところざわ','Tokorozawa','SS22',28.9,35.7866,139.4733],
+  ['航空公園','こうくうこうえん','Koku-koen','SS23',30.5,35.7983,139.4656],
+  ['新所沢','しんところざわ','Shin-Tokorozawa','SS24',31.7,35.8059,139.4571],
+  ['入曽','いりそ','Iriso','SS25',35.6,35.8325,139.4273],
+  ['狭山市','さやまし','Sayamashi','SS26',38.6,35.8569,139.4130],
+  ['新狭山','しんさやま','Shin-Sayama','SS27',41.3,35.8740,139.4335],
+  ['南大塚','みなみおおつか','Minami-Otsuka','SS28',43.9,35.8897,139.4542],
+  ['本川越','ほんかわごえ','Hon-Kawagoe','SS29',47.5,35.9135,139.4811]]},
+ haijima:{name:'拝島線',kana:'はいじません',en:'Haijima Line',c:'#00a6bf',sp:105,scene:{far:'rolling',near:'town'},st:[
+  ['小平','こだいら','Kodaira','SS19',0,35.7370,139.4885],
+  ['萩山','はぎやま','Hagiyama','SS30',1.1,35.7408,139.4769],
+  ['小川','おがわ','Ogawa','SS31',2.7,35.7376,139.4635],
+  ['東大和市','ひがしやまとし','Higashi-Yamatoshi','SS32',5.7,35.7328,139.4342],
+  ['玉川上水','たまがわじょうすい','Tamagawa-josui','SS33',7.2,35.7318,139.4184],
+  ['武蔵砂川','むさしすながわ','Musashi-Sunagawa','SS34',9.6,35.7289,139.3923],
+  ['西武立川','せいぶたちかわ','Seibu-Tachikawa','SS35',11.6,35.7262,139.3701],
+  ['拝島','はいじま','Haijima','SS36',14.3,35.7213,139.3435]]},
+ kokubunji:{name:'国分寺線',kana:'こくぶんじせん',en:'Kokubunji Line',c:'#38b35c',sp:85,scene:{far:'rolling',near:'town'},st:[
+  ['国分寺','こくぶんじ','Kokubunji','SK01',0,35.7001,139.4808],
+  ['恋ヶ窪','こいがくぼ','Koigakubo','SK02',2.1,35.7114,139.4639],
+  ['鷹の台','たかのだい','Takanodai','SK03',3.6,35.7231,139.4612],
+  ['小川','おがわ','Ogawa','SK04',5.1,35.7376,139.4635],
+  ['東村山','ひがしむらやま','Higashi-Murayama','SK05',7.8,35.7601,139.4658]]},
+ seibuen:{name:'西武園線',kana:'せいぶえんせん',en:'Seibuen Line',c:'#38b35c',sp:85,scene:{far:'rolling',near:'forest'},st:[
+  ['東村山','ひがしむらやま','Higashi-Murayama','SK05',0,35.7601,139.4658],
+  ['西武園','せいぶえん','Seibuen','SK06',2.4,35.7677,139.4489]]},
+ tamako:{name:'多摩湖線',kana:'たまこせん',en:'Tamako Line',c:'#f7aa2c',sp:85,scene:{far:'rolling',near:'town'},st:[
+  ['国分寺','こくぶんじ','Kokubunji','ST01',0,35.7008,139.4795],
+  ['一橋学園','ひとつばしがくえん','Hitotsubashi-gakuen','ST02',2.4,35.7222,139.4800],
+  ['青梅街道','おうめかいどう','Ome-kaido','ST03',3.4,35.7310,139.4766],
+  ['萩山','はぎやま','Hagiyama','ST04',4.6,35.7408,139.4769],
+  ['八坂','やさか','Yasaka','ST05',5.6,35.7449,139.4677],
+  ['武蔵大和','むさしやまと','Musashi-Yamato','ST06',8.1,35.7564,139.4440],
+  ['多摩湖','たまこ','Tamako','ST07',9.2,35.7659,139.4427]]},
+ tamagawa:{name:'多摩川線',kana:'たまがわせん',en:'Tamagawa Line',c:'#f17c24',sp:85,scene:{far:'rolling',near:'town'},st:[
+  ['武蔵境','むさしさかい','Musashi-Sakai','SW01',0,35.7021,139.5434],
+  ['新小金井','しんこがねい','Shin-Koganei','SW02',1.9,35.6959,139.5266],
+  ['多磨','たま','Tama','SW03',4.1,35.6768,139.5171],
+  ['白糸台','しらいとだい','Shiraitodai','SW04',5.5,35.6665,139.5099],
+  ['競艇場前','きょうていじょうまえ','Kyoteijo-mae','SW05',7.0,35.6562,139.4997],
+  ['是政','これまさ','Koremasa','SW06',8.0,35.6562,139.4886]]},
+};
+/* えきばんごうの いろ（SI 池袋線の なかま／SS 新宿線・拝島線／SK 国分寺線・西武園線／ST 多摩湖線／SW 多摩川線／SY 山口線） */
+const NUMC={SI:'#ef7a00',SS:'#00a6bf',SK:'#38b35c',ST:'#f7aa2c',SW:'#f17c24',SY:'#e83e3e'};
+
+/* ---------- けしき ----------
+   SCENE：くかん（えき|えき）ごとの とおくの けしき・ちかくの けしき。CITY：えきの まわりの まちの おおきさ（0〜1）
+   TUNNEL：くかんの なかの トンネルの ながさ（くかんの わりあい）。RIVER：かわの はば。UG：ちかの えき */
+const SCENE={
+ '池袋|椎名町':{far:'skyline'},'東長崎|椎名町':{far:'skyline'},'西武新宿|高田馬場':{far:'skyline'},'下落合|高田馬場':{far:'skyline'},
+ '仏子|元加治':{near:'field'},'元加治|飯能':{near:'field'},'東飯能|飯能':{near:'field'},
+ '武蔵藤沢|稲荷山公園':{near:'tea'},'入間市|稲荷山公園':{near:'tea'},'仏子|入間市':{near:'tea'},'入曽|新所沢':{near:'tea'},'入曽|狭山市':{near:'tea'},
+ '東飯能|高麗':{far:'range',near:'forest'},'武蔵横手|高麗':{far:'range',near:'forest'},'東吾野|武蔵横手':{far:'range',near:'forest'},'吾野|東吾野':{far:'range',near:'forest'},
+ '横瀬|芦ヶ久保':{far:'buko'},'横瀬|西武秩父':{far:'buko'},
+ '下山口|西武球場前':{far:'dome'},'西武園ゆうえんち|西武球場前':{far:'dome'},'多摩湖|西武園ゆうえんち':{far:'lake'},'多摩湖|武蔵大和':{far:'lake'},
+ '新狭山|南大塚':{near:'field'},'南大塚|本川越':{near:'town'}
+};
+const CITY={'池袋':1,'西武新宿':1,'高田馬場':1,'練馬':0.8,'石神井公園':0.6,'大泉学園':0.5,'ひばりヶ丘':0.6,'所沢':0.9,'飯能':0.5,'入間市':0.4,'本川越':0.6,'田無':0.6,'国分寺':0.8,'武蔵境':0.6,'東村山':0.5,'小平':0.4,'拝島':0.5,'狭山市':0.5,'西武秩父':0.3,'新所沢':0.4};
+const TUNNEL={'吾野|西吾野':0.4,'正丸|西吾野':0.5,'正丸|芦ヶ久保':0.85,'横瀬|芦ヶ久保':0.3};
+const RIVER={'仏子|元加治':900,'新狭山|狭山市':900,'武蔵横手|高麗':420};
+const UG={'小竹向原':1,'新桜台':1};
+
+/* ---------- しゃりょう（SERIES） ----------
+   front：かおの かたち（flat ひらら／slant すこし ななめ／egg たまご／nra とがった／laview まるい ガラス／agt ちいさい）
+   stripes：[うえからの たかさ, した, いろ（はいれつなら よこに グラデーション）, 'checker' なら いちまつもよう]（しゃたいの たかさは 50）
+   ui：[ボタンの いろ, おびの いろ]。え は かんたんに した もので、ほんものと そっくり では ありません */
+const BLUEGREEN=['#0067b3','#00a040'];
+const SERIES={
+ '001':{name:'001けい Laview',desc:'とっきゅう「ちちぶ」「むさし」。おおきな まどと、まるい ガラスの かおが じまん。いすは きいろ。',cars:8,doors:1,front:'laview',body:'#c9cdd2',win:'#39424f',wins:'big',seat:'#f2c230',skirt:'#5d646e',ui:['#c9cdd2','#f2c230'],panto:[2,6],motor:120},
+ '10000':{name:'10000けい ニューレッドアロー',desc:'しんじゅくせんの とっきゅう「小江戸」。2027ねんの はるに あたらしい「トキイロ」に バトンタッチ よてい。',cars:7,doors:1,front:'nra',body:'#f2f2ee',stripes:[[29,33,'#c8102e']],wins:'express',ui:['#f2f2ee','#c8102e'],panto:[2,5],motor:100},
+ '40000':{name:'40000けい',desc:'S-TRAIN・拝島ライナーにも つかう あたらしい でんしゃ。ちかてつにも のりいれる。',cars:10,doors:4,front:'slant',body:'#d9dcdf',face:'#1d232c',faceW:14,stripes:[[28,32,BLUEGREEN]],ui:['#d9dcdf','#0067b3'],panto:[2,4],motor:130},
+ '30000':{name:'30000けい スマイルトレイン',desc:'たまごの ような まるい かお。わらって いる みたいに みえるかな？',cars:10,doors:4,front:'egg',body:'#e8eaec',stripes:[[28,32,BLUEGREEN]],ui:['#e8eaec','#00a040'],panto:[2,4],motor:125},
+ '20000':{name:'20000けい',desc:'ぎんいろの アルミの からだに、せいぶブルーの おび。',cars:10,doors:4,front:'flat',body:'#d0d3d6',face:'#1d232c',faceW:12,stripes:[[28,31,'#0067b3'],[31,32.5,'#00a040']],ui:['#d0d3d6','#0067b3'],panto:[2,4],motor:115},
+ '6000':{name:'6000けい',desc:'ちかてつ ゆうらくちょうせん・ふくとしんせんに のりいれる ぎんいろの でんしゃ。',cars:10,doors:4,front:'flat',body:'#c8ccd0',face:'#1d232c',faceW:12,stripes:[[28,32,'#1e50a2']],ui:['#c8ccd0','#1e50a2'],panto:[2,4],motor:105},
+ '2000':{name:'2000けい（しん2000けい）',desc:'せいぶの きいろい でんしゃ。すこしずつ あたらしい でんしゃに かわって いる。',cars:8,doors:4,front:'flat',body:'#f6d200',face:'#1d232c',faceW:12,ui:['#f6d200','#1d232c'],panto:[2,4],motor:95},
+ '9000':{name:'9000けい',desc:'たまこせんを 4りょうで はしる きいろい でんしゃ。',cars:4,doors:4,front:'flat',body:'#f6d200',face:'#1d232c',faceW:12,ui:['#f6d200','#1d232c'],panto:[2],motor:95},
+ '101':{name:'しん101けい',desc:'たまがわせんを 4りょうで はしる。ドアは かたがわ 3つ。へんせいに よって いろが ちがう。',cars:4,doors:3,front:'flat',body:'#f6d200',face:'#1d232c',faceW:12,ui:['#f6d200','#8a6d00'],panto:[2],motor:90},
+ '4000':{name:'4000けい',desc:'ちちぶの やまを はしる 4りょう。しろい からだに みどり・あか・あおの せん。ドアは かたがわ 2つ。',cars:4,doors:2,front:'flat',body:'#f4f4f4',face:'#1d232c',faceW:12,stripes:[[25,27,'#009944'],[27.5,29.5,'#d7000f'],[30,32,'#005bac']],ui:['#f4f4f4','#009944'],panto:[2],motor:100},
+ '7000':{name:'7000けい',desc:'もと とうきゅうの でんしゃを なおした「サステナ しゃりょう」。2026ねんから さやません・ちちぶの やまへ。',cars:4,doors:4,front:'flat',body:'#cfd2d5',face:'#1d232c',faceW:13,stripes:[[27,33,BLUEGREEN,'checker']],ui:['#cfd2d5','#00a040'],panto:[2],motor:110},
+ '8000':{name:'8000けい',desc:'もと おだきゅうの でんしゃを なおした「サステナ しゃりょう」。こくぶんじせんを 6りょうで はしる。',cars:6,doors:4,front:'flat',body:'#f4f4f4',face:'#1d232c',faceW:12,stripes:[[27,33,BLUEGREEN,'checker']],ui:['#f4f4f4','#0067b3'],panto:[2,4],motor:100},
+ '8500':{name:'8500けい レオライナー',desc:'ゴムの タイヤで はしる ちいさな でんしゃ（あんないきじょうしき）。パンタグラフは ない。',cars:4,doors:2,front:'agt',len:110,body:'#f7f7f7',stripes:[[29,33,'#e83e3e']],ui:['#f7f7f7','#e83e3e'],noPanto:true,motor:150}
+};
+const GEN=['40000','30000','20000','6000'];/* いけぶくろせんの ふつうの でんしゃ */
+const GENS=['30000','20000','2000','40000'];/* しんじゅくせんの ふつうの でんしゃ */
+const THRU=['40000','6000'];/* ちかてつに のりいれる でんしゃ */
+
+/* ---------- ろせん（えらべる くかん） ---------- */
+const G1='池袋線の なかま',G2='新宿線の なかま',G3='ほかの ろせん';
+const ROUTES=[
+ route('ikebukuro','池袋線・西武秩父線','いけぶくろせん・せいぶちちぶせん','#ef7a00',G1,[['ikebukuro','池袋','吾野'],['chichibu','吾野','西武秩父']]),
+ route('yurakucho','西武有楽町線・池袋線','ゆうらくちょうせん・いけぶくろせん','#c75f00',G1,[['yurakucho','小竹向原','練馬'],['ikebukuro','練馬','吾野'],['chichibu','吾野','西武秩父']]),
+ route('toshima','池袋線・豊島線','いけぶくろせん・としません','#e88a2e',G1,[['ikebukuro','池袋','練馬'],['toshima','練馬','豊島園']]),
+ route('sayama','池袋線・狭山線','いけぶくろせん・さやません','#d9822b',G1,[['ikebukuro','池袋','西所沢'],['sayama','西所沢','西武球場前']]),
+ route('shinjuku','新宿線','しんじゅくせん','#00a6bf',G2,[['shinjuku','西武新宿','本川越']]),
+ route('haijima','新宿線・拝島線','しんじゅくせん・はいじません','#0089a0',G2,[['shinjuku','西武新宿','小平'],['haijima','小平','拝島']]),
+ route('kokubunji','国分寺線','こくぶんじせん','#38b35c',G2,[['kokubunji','国分寺','東村山']]),
+ route('seibuen','西武園線','せいぶえんせん','#2f9a4e',G2,[['seibuen','東村山','西武園']]),
+ route('tamako','多摩湖線','たまこせん','#f7aa2c',G3,[['tamako','国分寺','多摩湖']]),
+ route('yamaguchi','山口線（レオライナー）','やまぐちせん','#e83e3e',G3,[['yamaguchi','多摩湖','西武球場前']]),
+ route('tamagawa','多摩川線','たまがわせん','#f17c24',G3,[['tamagawa','武蔵境','是政']])
+];
+
+/* はじめに えらばれる でんしゃ：[のる えき, おりる えき, しゅべつ] */
+const DEF={ikebukuro:['池袋','飯能','急行'],yurakucho:['小竹向原','飯能','各停'],toshima:['池袋','豊島園','各停'],sayama:['西所沢','西武球場前','各停'],shinjuku:['西武新宿','本川越','急行'],haijima:['西武新宿','拝島','急行']};
+
+/* ---------- しゅべつ（TYPES） ----------
+   k：ひょうじ、y：よみ、en：えいご、c：いろ、stops：とまる えき（ない ときは はんいの ぜんぶの えき）、range：はしる くかん、
+   dir：'up'（池袋・西武新宿・小竹向原 がわへ）だけ／'down' だけ、t：でる じかん [から, まで]（ふん）、ser：しゃりょう、
+   thru：ちかてつへ のりいれる ときの いきさき、note：せつめい、dwell：ていしゃ じかん（ふん）
+   ていしゃえきは 2025年3月15日の ダイヤかいせい（2026年11月 じてん）を もとに しています */
+const C={L:'#5a6a7e',SE:'#2eab8d',R:'#00a3d9',CE:'#f39800',E:'#e60012',RE:'#8e3b9e',LTD:'#c8102e',ST:'#5f9e12',HL:'#8a9600'};
+const IK_ALL=['池袋','椎名町','東長崎','江古田','桜台','練馬','中村橋','富士見台','練馬高野台','石神井公園','大泉学園','保谷','ひばりヶ丘','東久留米','清瀬','秋津','所沢','西所沢','小手指','狭山ヶ丘','武蔵藤沢','稲荷山公園','入間市','仏子','元加治','飯能'];
+const IK_TOKO=['所沢','西所沢','小手指','狭山ヶ丘','武蔵藤沢','稲荷山公園','入間市','仏子','元加治','飯能'];/* 所沢から さきは かくえき */
+const CHI_ALL=['飯能','東飯能','高麗','武蔵横手','東吾野','吾野','西吾野','正丸','芦ヶ久保','横瀬','西武秩父'];
+const IK={
+ L:{k:'各停',y:'かくえきていしゃ',en:'Local',c:C.L},
+ SE:{k:'準急',y:'じゅんきゅう',en:'Semi Express',c:C.SE},
+ CSE:{k:'通勤準急',y:'つうきんじゅんきゅう',en:'Commuter Semi Express',c:C.SE},
+ R:{k:'快速',y:'かいそく',en:'Rapid',c:C.R},
+ CE:{k:'通勤急行',y:'つうきんきゅうこう',en:'Commuter Express',c:C.CE},
+ E:{k:'急行',y:'きゅうこう',en:'Express',c:C.E},
+ RE:{k:'快速急行',y:'かいそくきゅうこう',en:'Rapid Express',c:C.RE}
+};
+const T=(base,o)=>Object.assign({},base,o);
+const SS_ALL=['西武新宿','高田馬場','下落合','中井','新井薬師前','沼袋','野方','都立家政','鷺ノ宮','下井草','井荻','上井草','上石神井','武蔵関','東伏見','西武柳沢','田無','花小金井','小平','久米川','東村山','所沢','航空公園','新所沢','入曽','狭山市','新狭山','南大塚','本川越'];
+const SS_SE=['西武新宿','高田馬場','鷺ノ宮'].concat(SS_ALL.slice(SS_ALL.indexOf('上石神井')));
+const SS_E=['西武新宿','高田馬場','鷺ノ宮','上石神井'].concat(SS_ALL.slice(SS_ALL.indexOf('田無')));
+const HJ=['小平','萩山','小川','東大和市','玉川上水','武蔵砂川','西武立川','拝島'];
+const upto=(list,n)=>list.slice(0,list.indexOf(n)+1);
+const TYPES={
+ ikebukuro:[
+  T(IK.L,{range:['池袋','飯能'],ser:GEN}),
+  T(IK.SE,{stops:['池袋','練馬'].concat(IK_ALL.slice(IK_ALL.indexOf('石神井公園'))),ser:GEN,note:'石神井公園から さき かくえき'}),
+  T(IK.CSE,{stops:['池袋','練馬','大泉学園','保谷','ひばりヶ丘','東久留米','清瀬','秋津','所沢','西所沢','小手指'],dir:'up',t:[360,510],ser:GEN,note:'へいじつ あさの のぼり だけ・石神井公園 つうか'}),
+  T(IK.R,{stops:['池袋','練馬','石神井公園'].concat(IK_ALL.slice(IK_ALL.indexOf('ひばりヶ丘'))),ser:GEN,note:'ひばりヶ丘から さき かくえき'}),
+  T(IK.CE,{stops:['池袋','石神井公園','大泉学園','保谷','東久留米'].concat(IK_TOKO),dir:'up',t:[330,510],ser:GEN,note:'へいじつ あさの のぼり だけ'}),
+  T(IK.E,{stops:['池袋','石神井公園','ひばりヶ丘'].concat(IK_TOKO),ser:GEN,note:'所沢から さき かくえき'}),
+  T(IK.RE,{stops:['池袋','石神井公園','ひばりヶ丘','所沢','小手指','入間市'].concat(CHI_ALL),ser:GEN,note:'どにちが おおい・飯能から さき かくえき'}),
+  {k:'特急ちちぶ',y:'とっきゅう ちちぶごう',en:'Limited Express Chichibu',c:C.LTD,stops:['池袋','所沢','入間市','飯能','横瀬','西武秩父'],ser:['001'],dwell:1,note:'Laview・ざせき していせき'},
+  {k:'特急むさし',y:'とっきゅう むさしごう',en:'Limited Express Musashi',c:C.LTD,stops:['池袋','所沢','入間市','飯能'],ser:['001'],dwell:1,note:'Laview・ざせき していせき'},
+  T(IK.L,{range:['飯能','西武秩父'],ser:['7000','4000'],note:'やまの 4りょう'})
+ ],
+ yurakucho:[
+  T(IK.L,{range:['小竹向原','飯能'],ser:THRU,thru:['新木場','しんきば','Shin-kiba'],note:'ちかてつ ゆうらくちょうせんへ'}),
+  T(IK.RE,{k:'快速急行',stops:['小竹向原','練馬','石神井公園','ひばりヶ丘','所沢','小手指','入間市','飯能'],ser:THRU,thru:['元町・中華街','もとまち・ちゅうかがい','Motomachi-Chukagai'],note:'Fライナー・ふくとしんせん→とうよこせん→みなとみらいせんへ'}),
+  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','石神井公園','保谷','所沢'],dir:'up',t:[380,480],ser:['40000'],dwell:1,thru:['豊洲','とよす','Toyosu'],note:'へいじつ あさ・ざせき していせき・豊洲ゆき'},
+  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','練馬','石神井公園','保谷','所沢','西所沢','小手指'],dir:'down',t:[1080,1380],ser:['40000'],dwell:1,note:'へいじつ よる・豊洲から'},
+  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','石神井公園','所沢','入間市','飯能','西武秩父'],dir:'down',t:[420,600],ser:['40000'],dwell:1,note:'どにち あさ・元町・中華街から'},
+  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','石神井公園','所沢','入間市','飯能','西武秩父'],dir:'up',t:[900,1140],ser:['40000'],dwell:1,thru:['元町・中華街','もとまち・ちゅうかがい','Motomachi-Chukagai'],note:'どにち ゆうがた・元町・中華街ゆき'},
+  T(IK.L,{range:['飯能','西武秩父'],ser:['7000','4000'],note:'やまの 4りょう'})
+ ],
+ toshima:[
+  T(IK.L,{ser:GEN,note:'池袋から 豊島園へ ちょくつう'})
+ ],
+ sayama:[
+  T(IK.L,{range:['西所沢','西武球場前'],ser:['7000'],note:'さやませんの なかを ワンマンで'}),
+  T(IK.E,{stops:['池袋','石神井公園','ひばりヶ丘','所沢','西所沢','下山口','西武球場前'],ser:GEN,note:'ドームで しあいの ひ など'}),
+  {k:'特急',y:'とっきゅう',en:'Limited Express',c:C.LTD,stops:['池袋','所沢','西武球場前'],ser:['001'],dwell:1,note:'ドームで しあいの ひの りんじ とっきゅう'}
+ ],
+ shinjuku:[
+  T(IK.L,{ser:GENS}),
+  T(IK.SE,{stops:SS_SE,ser:GENS,note:'上石神井から さき かくえき'}),
+  T(IK.E,{stops:SS_E,ser:GENS,note:'田無から さき かくえき'}),
+  T(IK.CE,{stops:['西武新宿','高田馬場','鷺ノ宮','上石神井','田無','東村山','所沢','新所沢','狭山市','本川越'],dir:'up',t:[330,510],ser:GENS,note:'へいじつ あさの のぼり だけ'}),
+  T(IK.RE,{stops:['西武新宿','高田馬場','田無','東村山','所沢','新所沢','入曽','狭山市','新狭山','南大塚','本川越'],dir:'down',t:[420,600],ser:GENS,note:'どにち あさの くだり 1ぽん だけ'}),
+  {k:'特急小江戸',y:'とっきゅう こえどごう',en:'Limited Express Koedo',c:C.LTD,stops:['西武新宿','高田馬場','東村山','所沢','狭山市','本川越'],ser:['10000'],dwell:1,note:'ニューレッドアロー・ざせき していせき'}
+ ],
+ haijima:[
+  T(IK.L,{ser:GENS}),
+  T(IK.SE,{stops:upto(SS_SE,'小平').concat(HJ.slice(1)),ser:GENS,note:'はいじませんの なかは かくえき'}),
+  T(IK.E,{stops:upto(SS_E,'小平').concat(HJ.slice(1)),ser:GENS,note:'はいじませんの なかは かくえき'}),
+  {k:'拝島ライナー',y:'はいじまライナー',en:'Haijima Liner',c:C.HL,stops:['西武新宿','高田馬場'].concat(HJ),dir:'down',t:[1050,1410],ser:['40000'],dwell:1,note:'ゆうがた・よるの くだり・ざせき していせき'},
+  {k:'拝島ライナー',y:'はいじまライナー',en:'Haijima Liner',c:C.HL,stops:['西武新宿','高田馬場'].concat(HJ),dir:'up',t:[370,450],ser:['40000'],dwell:1,note:'へいじつ あさの のぼり'}
+ ],
+ kokubunji:[T(IK.L,{ser:['8000','2000'],note:'6りょう'})],
+ seibuen:[T(IK.L,{ser:['2000'],cars:4,note:'4りょう'})],
+ tamako:[T(IK.L,{ser:['9000'],note:'4りょう ワンマン'})],
+ yamaguchi:[T(IK.L,{ser:['8500'],note:'レオライナー'})],
+ tamagawa:[T(IK.L,{ser:['101'],note:'4りょう ワンマン'})]
+};
+TYPES.kokubunji[0].cars=6;
+/* ---------- ろせん（ROUTES）：BASE の えきを つなげて、のりかえ なしで はしる くかんを つくる ---------- */
+/* route(id, なまえ, よみ, いろ, グループ, [[BASEの id, から, まで], ...]) */
+function route(id,name,kana,c,group,parts){
+  const st=[],seg=[];
+  parts.forEach(([lid,from,to])=>{const L=BASE[lid];if(!L)throw new Error('no line '+lid);
+    const i=L.st.findIndex(s=>s[0]===from),j=L.st.findIndex(s=>s[0]===to);if(i<0||j<0)throw new Error('no station '+lid+' '+from+'/'+to);
+    const step=i<=j?1:-1;
+    for(let x=i;x!==j+step;x+=step){
+      if(x===i&&st.length){if(st[st.length-1][0]!==L.st[x][0])throw new Error('gap '+id);continue;}
+      if(st.length){const lo=Math.min(x,x-step),si=L.slow?L.st.findIndex(s=>s[0]===L.slow[0]):-1;
+        seg.push({l:lid,d:Math.abs(L.st[x][4]-L.st[x-step][4]),v:si>=0&&lo>=si?L.slow[1]:L.sp});}
+      st.push(L.st[x]);
+    }});
+  return {id,name,kana,c,group,st,seg};
+}
+/* ---------- しゅべつ（TYPES）の きまり ---------- */
+function stIndex(R,n){return R.st.findIndex(s=>s[0]===n);}
+function typeRange(R,ty){
+  if(ty.range){const a=stIndex(R,ty.range[0]),b=stIndex(R,ty.range[1]);return[Math.min(a,b),Math.max(a,b)];}
+  if(ty.stops){let lo=1e9,hi=-1;R.st.forEach((s,i)=>{if(ty.stops.includes(s[0])){lo=Math.min(lo,i);hi=Math.max(hi,i);}});return[lo,hi];}
+  return[0,R.st.length-1];
+}
+function stopsAt(R,ty,i){const [lo,hi]=typeRange(R,ty);if(i<lo||i>hi)return false;return !ty.stops||ty.stops.includes(R.st[i][0]);}
+/* のぼり（up）＝ えきばんごうが ちいさい ほう（池袋・西武新宿 がわ）へ むかう */
+function typeOK(R,ty,a,b){
+  if(a===b||!stopsAt(R,ty,a)||!stopsAt(R,ty,b))return false;
+  if(ty.dir==='up'&&b>a)return false;if(ty.dir==='down'&&b<a)return false;
+  if(ty.only&&!ty.only.some(([x,y])=>R.st[a][0]===x&&R.st[b][0]===y))return false;
+  return true;
+}
+function typesOf(R){return TYPES[R.id]||[];}
+function serOf(id){return SERIES[id]||SERIES[Object.keys(SERIES)[0]];}
+
+/* ---------- のる でんしゃ（Trip） ----------
+   えきばんごう k（0,1,2…）は しゅっぱつ してからの じゅんばん。おりる えきで おりかえす。
+   じこく（めやす）＝ えきかんの キロ ÷（さいこうそくどの 72%）＋ とまる えきの かそく・げんそく 0.6ぷんずつ ＋ ていしゃ。
+   がめんの えきの あいだの ながさも キロに あわせて かわる（ちかい えきは みじかく、とおい えきは ながく） */
+const DWELL=0.5,TURN=10;
+function gapX(km){return Math.max(5200,Math.min(17000,3600+2800*km));}
+class Trip{
+  constructor(R,a,b,start,ti,ser){
+    const last=R.st.length-1;
+    if(!Number.isInteger(a)||a<0||a>last)a=0;if(!Number.isInteger(b)||b<0||b>last||b===a)b=a===last?0:last;
+    this.line=R;this.a=a;this.b=b;const T=typesOf(R);
+    if(!Number.isInteger(ti)||!T[ti]||!typeOK(R,T[ti],a,b))ti=T.findIndex(t=>typeOK(R,t,a,b));
+    this.ok=ti>=0;if(ti<0)ti=0;this.ti=ti;
+    /* かえりの でんしゃ：おなじ しゅべつが はしれば おなじ、だめなら おなじ なまえ、それも だめなら はしれる もの */
+    let r=T.findIndex(t=>t===T[ti]&&typeOK(R,t,b,a));if(r<0)r=T.findIndex(t=>t.k===T[ti].k&&typeOK(R,t,b,a));if(r<0)r=T.findIndex(t=>typeOK(R,t,b,a));this.ri=r<0?ti:r;
+    const sl=T[ti].ser||[];this.ser=sl.includes(ser)?ser:(sl[0]||Object.keys(SERIES)[0]);
+    this._lt=[];this.buildX();this.setStart(start);}
+  get type(){return typesOf(this.line)[this.ti];}
+  legType(L){return typesOf(this.line)[L%2?this.ri:this.ti];}
+  tyAt(k){return this.legType(Math.floor(k/this.len));}
+  setStart(m){this.start=m;this._ls=[];this.start=Math.min(this.lastStart(),Math.max(this.firstStart(),m));this._ls=[];return this;}
+  get len(){return Math.abs(this.b-this.a);}
+  idx(k){const m=this.len,P=2*m,p=((k%P)+P)%P,j=p<=m?p:P-p;return this.a+(this.b>this.a?1:-1)*j;}
+  st(k){return this.line.st[this.idx(k)];}
+  isEnd(k){const i=this.idx(k);return i===this.a||i===this.b;}
+  /* k から k+1 へ むかうときの いきさき。ちかてつへ のりいれる ときは ちかてつの えき（thru） */
+  dest(k){const x=this.idx(k),y=this.idx(k+1),toB=this.b>this.a?y>x:y<x,i=toB?this.b:this.a,ty=this.tyAt(k);
+    if(ty.thru&&i===0)return [ty.thru[0],ty.thru[1],ty.thru[2],'',0,0,0];return this.line.st[i];}
+  segI(k){return Math.min(this.idx(k),this.idx(k+1));}
+  seg(k){return this.line.seg[this.segI(k)];}
+  dist(k){return this.seg(k).d;}
+  baseAt(k){return BASE[this.seg(k).l];}
+  segKmh(k){return this.seg(k).v;}
+  isStop(k){if(this.isEnd(k))return true;return stopsAt(this.line,this.tyAt(k),this.idx(k));}
+  nextStop(k){let j=k+1;while(!this.isStop(j))j++;return j;}
+  stopCount(){let n=0;for(let k=0;k<=this.len;k++)if(this.isStop(k))n++;return n;}
+  runMin(k){return this.dist(k)/(this.segKmh(k)*0.72)*60+(this.isStop(k)?0.6:0)+(this.isStop(k+1)?0.6:0);}
+  legTimes(L){const p=L%2;if(this._lt[p])return this._lt[p];const n1=this.len,k0=p*n1,a=[0],d=[0],dw=this.legType(L).dwell||DWELL;let t=0;
+    for(let j=0;j<n1;j++){const k=k0+j;t+=this.runMin(k);a[j+1]=t;if(j+1<n1&&this.isStop(k+1))t+=dw;d[j+1]=t;}return this._lt[p]={a,d};}
+  legStart(L){const m=this._ls;while(m.length<=L){const j=m.length;m.push(j===0?this.start:m[j-1]+this.legTimes(j-1).a[this.len]+TURN);}return m[L];}
+  /* はしる じかん：ふつうは 5:00〜24:00 に でる。じかんが きまって いる しゅべつ（t）は その あいだ */
+  firstStart(){const t=this.type.t;return t?t[0]:300;}
+  lastStart(){const t=this.type.t;return t?t[1]:1440;}
+  arrMin(k){if(k<=0)return null;const n1=this.len,L=Math.floor((k-1)/n1);return this.legStart(L)+this.legTimes(L).a[k-L*n1];}
+  depMin(k){const n1=this.len,L=Math.floor(k/n1),j=k-L*n1;return this.legStart(L)+(j===0?0:this.legTimes(L).d[j]);}
+  /* がめんの うえの いち */
+  buildX(){const P=2*this.len;this._xs=[0];for(let k=0;k<P;k++)this._xs.push(this._xs[k]+gapX(this.dist(k)));this._D=this._xs[P];}
+  X(k){const P=2*this.len,q=Math.floor(k/P);return q*this._D+this._xs[k-q*P];}
+  kAt(x){const P=2*this.len,q=Math.floor(x/this._D),r=x-q*this._D;let lo=0,hi=P;while(hi-lo>1){const m=(lo+hi)>>1;if(this._xs[m]<=r)lo=m;else hi=m;}return q*P+lo;}
+  /* 「○○から さきは かくえきに とまります」の ○○（k より さきで、そこから しゅうてんまで ぜんぶ とまる はじめの えき） */
+  allFrom(k){const L=Math.floor(k/this.len),end=(L+1)*this.len;let j=end;while(j-1>k&&this.isStop(j-1))j--;
+    let pass=false;for(let x=k+1;x<j;x++)if(!this.isStop(x))pass=true;
+    /* とっきゅう・ライナーは いわない。のこりが 2えき だけの ときも いわない */
+    if(this.tyAt(k).dwell)return -1;return pass&&j<end-1?j:-1;}
+}
+
+/* ちず用の いち（えきデータから つくる） */
+const POS={};Object.values(BASE).forEach(l=>l.st.forEach(x=>{POS[x[0]]=[x[5],x[6]];}));
+const MAXV=900, ACC=150, COAST=18, BRAKE=170, JOINT=300;
+const FONT='"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans",sans-serif';
+const reduced=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const $=id=>document.getElementById(id);
+const cv=$('cv');let ctx=cv.getContext('2d');
+const goBtn=$('go'), hornBtn=$('horn'), autoBtn=$('auto'), sndBtn=$('snd');
+
+let W=0,H=0,DPR=1,s=1,bw=0,bh=0,ty=0;
+let pos=0,v=0,state='stopped',target=0,stopT=10,doorAnim=1,announced=false,hornT=0,first=true,bellT=0;
+let auto=false,soundOn=true;
+const holders=new Set();
+const holding=()=>holders.size>0;
+
+let trip=new Trip(ROUTES[0],0,1,360,0),line=trip.line;
+/* いまの でんしゃ（trip）への ちかみち */
+const idx=k=>trip.idx(k),st=k=>trip.st(k),isEnd=k=>trip.isEnd(k),dest=k=>trip.dest(k),segKmh=k=>trip.segKmh(k),
+  isStop=k=>trip.isStop(k),nextStop=k=>trip.nextStop(k),arrMin=k=>trip.arrMin(k),depMin=k=>trip.depMin(k),
+  tripLen=()=>trip.len,legLen=()=>trip.len,X=k=>trip.X(k),kAt=x=>trip.kAt(x),tyAt=k=>trip.tyAt(k);
+function kNear(x){const k=kAt(x);return (x-X(k))<(X(k+1)-x)?k:k+1;}
+function frac(x,k){return Math.max(0,Math.min(1,(x-X(k))/(X(k+1)-X(k))));}
+let curS=null;
+/* いまの しゃりょう（しゅべつで りょうすうが きまって いる ときは それに あわせる） */
+function SER(){if(!curS||curS.id!==trip.ser+'|'+trip.ti){const S=serOf(trip.ser),c=trip.type.cars;curS=Object.assign({},S,c?{cars:c}:{},{id:trip.ser+'|'+trip.ti});}return curS;}
+function segVmax(k){return MAXV*(0.35+0.65*segKmh(k)/105);}
+function curK(){return Math.min(target-1,Math.max(0,kAt(pos)));}
+/* でんしゃの じょうたい：ボタンの もじ・まつ あいだか・はしって いるか・きんきゅう ていしが おせるか・えきに いるか */
+const STATES={
+  stopped:  {label:'しゅっぱつ！',      wait:false,move:false,canE:false,atSt:true},
+  bell:     {label:'はっしゃ ベル',     wait:true, move:false,canE:false,atSt:true,busyLabel:'のりおり まってね'},
+  closing:  {label:'ドアが しまります', wait:true, move:false,canE:false,atSt:true},
+  running:  {label:'すすむ',            wait:false,move:true, canE:true, atSt:false},
+  braking:  {label:'とまります',        wait:true, move:true, canE:true, atSt:false},
+  estop:    {label:'きんきゅう ていし', wait:true, move:true, canE:false,atSt:false},
+  estopWait:{label:'かくにん ちゅう',   wait:true, move:true, canE:false,atSt:false}};
+function moving(){return STATES[state].move;}
+function canEmergency(){return STATES[state].canE;}
+function atStation(){return STATES[state].atSt;}
+function curSeg(){return moving()?curK():kNear(pos);}
+/* いま の しゅべつ（えきに いる ときは つぎに でる しゅべつ） */
+function curType(){return tyAt(curSeg());}
+function fmt(t){const m=((Math.round(t)%1440)+1440)%1440;return Math.floor(m/60)+':'+String(m%60).padStart(2,'0');}
+function fmtJa(t){const m=((Math.round(t)%1440)+1440)%1440;return Math.floor(m/60)+'時'+(m%60===0?'ちょうど':(m%60)+'分');}
+function nowMin(){
+  if(moving()){const k=curK(),f=frac(pos,k),d=depMin(k);return d+(arrMin(k+1)-d)*f+delay;}
+  const k=kNear(pos);if(state==='closing')return depMin(k)+delay;const a=arrMin(k);return (a==null?depMin(k):a)+delay;
+}
+function hash(i){const x=Math.sin(i*12.9898+78.233)*43758.5453;return x-Math.floor(x);}
+/* くかんの トンネル（t0〜t1）・かわ（r0〜r1）・ふみきり（cr）。ちかの くかんは ug */
+function pairKey(k){const a=st(k)[0],b=st(k+1)[0];return a<b?a+'|'+b:b+'|'+a;}
+const featCache=new Map();
+function feat(k){
+  const key=trip.line.id+'|'+trip.a+'|'+trip.b+'|'+k;let f=featCache.get(key);if(f)return f;
+  const b=X(k),e=X(k+1),g=e-b,pk=pairKey(k);
+  f={t0:-1e9,t1:-1e9,r0:-1e9,r1:-1e9,ug:false,cr:[]};
+  const T=TUNNEL[pk],p=UG[st(k)[0]],q=UG[st(k+1)[0]],U=p||q;
+  if(U){/* ちかの くかん（ちかの えきは ホームごと トンネルの なか） */
+    f.ug=true;f.t0=p?b-900:b+g*0.45;f.t1=q?e+900:b+g*0.55;}
+  else if(T){f.t0=b+g*(0.5-T/2);f.t1=b+g*(0.5+T/2);}
+  const R=RIVER[pk];if(R){f.r0=b+g*0.42;f.r1=b+g*0.42+Math.min(g*0.3,R);}
+  if(!U&&!(T>=0.8)){/* ふみきり：まちの くかんには だいたい ある */
+    [0.2,0.7].forEach((p,i)=>{const x=b+g*p+hash(k*7+i)*g*0.08;if(hash(k*3+i*5+idx(k))<0.62&&!(x>f.t0-300&&x<f.t1+300)&&!(x>f.r0-200&&x<f.r1+200))f.cr.push(x);});}
+  featCache.set(key,f);return f;
+}
+function inTunnel(x){const f=feat(kAt(x));return x>=f.t0&&x<=f.t1;}
+function nearStation(x,m){const k=kNear(x);return Math.abs(x-X(k))<m;}
+
+/* ---------- 保存 ---------- */
+function save(){try{localStorage.setItem('seibu',JSON.stringify({auto,soundOn,mapOn,tripA:trip.a,tripB:trip.b,ti:trip.ti,ser:trip.ser,lineId:line.id}));}catch(e){}}
+function load(){try{return JSON.parse(localStorage.getItem('seibu')||'{}')||{};}catch(e){return{};}}
+
+/* ---------- おと ---------- */
+let AC=null,master,motorOsc,motorGain,motorFilt,noiseBuf=null;
+function ensureAudio(){
+  if(AC){if(AC.state==='suspended')AC.resume();return;}
+  try{
+    AC=new(window.AudioContext||window.webkitAudioContext)();
+    master=AC.createGain();master.gain.value=soundOn?0.8:0;master.connect(AC.destination);
+    motorOsc=AC.createOscillator();motorOsc.type='sawtooth';motorOsc.frequency.value=100;
+    motorFilt=AC.createBiquadFilter();motorFilt.type='lowpass';motorFilt.frequency.value=400;
+    motorGain=AC.createGain();motorGain.gain.value=0;
+    motorOsc.connect(motorFilt);motorFilt.connect(motorGain);motorGain.connect(master);motorOsc.start();
+  }catch(e){AC=null;}
+}
+function noise(){if(noiseBuf)return noiseBuf;const n=Math.floor(AC.sampleRate*0.8);noiseBuf=AC.createBuffer(1,n,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;return noiseBuf;}
+function burst(t,f,g,dur,type){const src=AC.createBufferSource();src.buffer=noise();const fl=AC.createBiquadFilter();fl.type=type||'bandpass';fl.frequency.value=f;fl.Q.value=1.1;const gn=AC.createGain();gn.gain.setValueAtTime(g,t);gn.gain.exponentialRampToValueAtTime(0.001,t+dur);src.connect(fl);fl.connect(gn);gn.connect(master);src.start(t);src.stop(t+dur+0.05);}
+function tone(f,t,dur,type,g){const o=AC.createOscillator();o.type=type||'sine';o.frequency.value=f;const gn=AC.createGain();gn.gain.setValueAtTime(0.0001,t);gn.gain.exponentialRampToValueAtTime(g||0.25,t+0.02);gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(gn);gn.connect(master);o.start(t);o.stop(t+dur+0.05);}
+function clack(){if(!AC)return;const t=AC.currentTime;burst(t,170,0.5,0.08);burst(t+0.11,150,0.4,0.08);}
+function carChime(){if(!AC)return;const t=AC.currentTime;[784,988,1175].forEach((f,i)=>tone(f,t+i*0.2,0.6,'sine',0.16));}
+function pinpon(){if(!AC)return;const t=AC.currentTime;tone(988,t,0.8);tone(784,t+0.4,1.1);}
+function bell(){if(!AC)return;const t=AC.currentTime;[523,659,784,1047,784,880,1047].forEach((f,i)=>tone(f,t+i*0.2,0.35,'triangle',0.18));}
+function doorSnd(){if(!AC)return;burst(AC.currentTime,900,0.3,0.6,'lowpass');}
+function hornSnd(){if(!AC)return;const t=AC.currentTime;[440,554].forEach(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1600;const g=AC.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.13,t+0.05);g.gain.setValueAtTime(0.13,t+0.8);g.gain.exponentialRampToValueAtTime(0.0001,t+1.1);o.connect(lp);lp.connect(g);g.connect(master);o.start(t);o.stop(t+1.2);});}
+/* ふみきりの カンカン */
+function kan(g){if(!AC)return;const t=AC.currentTime;tone(760,t,0.22,'square',0.05*g);tone(1140,t,0.18,'sine',0.05*g);}
+
+/* ---------- アナウンス（にほんご → えいご の じゅん） ---------- */
+let enVoice=null,jaVoice=null;
+/* Mac の Chrome は さいしょに「Albert」（かすれた こえ）や おもしろ こえが ならぶので、ふつうの こえを えらぶ */
+const ODD_VOICE=/^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Kathy|Ralph|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley)\b/i;
+const GOOD_JA=['Kyoko','O-ren','Otoya','Hattori','Google 日本語','Microsoft Nanami','Microsoft Ayumi','Microsoft Haruka'];
+const GOOD_EN=['Samantha','Ava','Allison','Alex','Susan','Zoe','Evan','Nathan','Tom','Google US English','Microsoft Aria','Microsoft Jenny','Microsoft Guy','Microsoft Zira'];
+function bestVoice(vs,lang,good){
+  const score=x=>{if(ODD_VOICE.test(x.name))return -1;const i=good.findIndex(g=>x.name.startsWith(g));
+    return (i<0?0:100-i)+(lang.test(x.lang)?10:0)+(/Enhanced|Premium|拡張|プレミアム/.test(x.name)?5:0)+(x.localService?1:0);};
+  let best=null,bs=-1;for(const x of vs){const sc=score(x);if(sc>bs){best=x;bs=sc;}}return best;}
+function pickVoices(){try{const vs=speechSynthesis.getVoices();
+  jaVoice=bestVoice(vs.filter(x=>/^ja/i.test(x.lang)),/^ja[-_]JP/i,GOOD_JA);
+  enVoice=bestVoice(vs.filter(x=>/^en/i.test(x.lang)),/^en[-_]US/i,GOOD_EN);}catch(e){}}
+if('speechSynthesis' in window){pickVoices();try{speechSynthesis.onvoiceschanged=pickVoices;}catch(e){}}
+function announce(ja,en,delay,cut){
+  if(!soundOn||!('speechSynthesis' in window))return;
+  setTimeout(()=>{
+    if(!soundOn)return;
+    try{
+      if(cut)speechSynthesis.cancel();
+      const a=new SpeechSynthesisUtterance(ja);a.lang='ja-JP';if(jaVoice)a.voice=jaVoice;a.rate=0.92;a.pitch=1.05;speechSynthesis.speak(a);
+      if(en){const b=new SpeechSynthesisUtterance(en);b.lang='en-US';if(enVoice)b.voice=enVoice;b.rate=0.9;speechSynthesis.speak(b);}
+    }catch(e){}
+  },delay||0);
+}
+function speechBusy(){try{return soundOn&&'speechSynthesis' in window&&(speechSynthesis.speaking||speechSynthesis.pending);}catch(e){return false;}}
+function stopSpeech(){if('speechSynthesis' in window){try{speechSynthesis.cancel();}catch(e){}}}
+/* えいごの えきめい：「Tokorozawa, SI17」 */
+const enSt=n=>n[2]+(n[3]?', '+n[3].replace(/^([A-Z]+)0?(\d+)$/,'$1 $2'):'');
+const enLine=k=>trip.baseAt(k).en;
+
+/* ---------- しゃない ひょうじき ---------- */
+let ledNow='';
+function led(text){
+  if(text===ledNow)return;ledNow=text;
+  const el=$('ledText');el.textContent=text;
+  el.style.setProperty('--dur',Math.max(8,text.length*0.42+5)+'s');
+  el.style.animation='none';void el.offsetWidth;el.style.animation='';
+}
+
+/* ---------- うごき ---------- */
+function press(src){
+  ensureAudio();
+  if(first){first=false;try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{});}catch(e){}}
+  holders.add(src);
+  if(state==='stopped')depart();
+  else if(state==='running')v=Math.min(segVmax(curK()),v+50);
+}
+function release(src){holders.delete(src);}
+function depart(){
+  if(state!=='stopped')return;
+  state='bell';bellT=0;bell();
+  led('はっしゃ します  ドアが しまります  ごちゅうい ください');
+}
+/* ---------- のりおりする ひと ---------- */
+let DOORS=[];/* ホームにかかるドアの位置（列車の中心からのきょり）。しゃりょうで かわる */
+let people=[];
+const SKIN=['#f3d3b5','#e2b48e','#c68e64','#8d5b3d'],SHIRT=['#e4572e','#2e86ab','#f2c14e','#4caf50','#9c6ade','#ff8fab','#3d5a80','#e07a2f'],PANTS=['#2b2d42','#4a4e69','#5c4033','#1d3557'];
+function rnd(a){return a[Math.floor(Math.random()*a.length)];}
+function person(X0,kind,door,delay,sx){return{X:X0,kind,door,delay,sx,t:0,ph:Math.random()*6,dir:Math.random()<.5?-1:1,yo:kind==='inside'?-8:0,a:kind==='inside'?0:1,
+  look:{skin:rnd(SKIN),shirt:rnd(SHIRT),pants:rnd(PANTS),h:Math.random()<.2?0.72:0.9+Math.random()*0.15,bag:Math.random()<.3?1:(Math.random()<.35?2:0),hair:Math.random()<.5?'#2b2118':'#5a3b22'}};}
+function spawnWaiting(k){
+  people=people.filter(p=>p.kind==='away');
+  const sx=X(k),many=DOORS.length>4;
+  DOORS.forEach((d,di)=>{const n=many?Math.floor(Math.random()*2.4):Math.floor(Math.random()*3)+(di===0?1:0);
+    for(let j=0;j<n;j++){const side=j%2?1:-1,row=Math.floor(j/2);
+      people.push(person(sx+d+side*(11+row*9),'wait',sx+d,0.8+j*0.7,sx));}});
+}
+function spawnAlight(k){
+  const sx=X(k),end=isEnd(k),many=DOORS.length>4;
+  DOORS.forEach(d=>{const n=end?1+Math.floor(Math.random()*(many?2:3)):Math.floor(Math.random()*(many?2:3));
+    for(let j=0;j<n;j++)people.push(person(sx+d,'inside',sx+d,1.2+j*0.7,sx));
+    let b=0;people.forEach(p=>{if(p.kind==='wait'&&p.door===sx+d){p.delay=1.5+n*0.7+b*0.7;b++;}});
+  });
+}
+function doorBusy(door){return people.some(q=>q.door===door&&(q.kind==='inside'||q.kind==='exit'));}
+function paxBusy(){const c=X(kNear(pos));return people.some(p=>p.kind!=='away'&&Math.abs(p.door-c)<400);}
+function paxUpdate(dt){
+  const open=(state==='stopped'||state==='bell')&&doorAnim>=1,hurry=state==='bell'?2:1;
+  for(const p of people){
+    if(p.kind==='inside'){
+      if(open&&(stopT>p.delay||(state==='bell'&&!people.some(q=>q.door===p.door&&q.kind==='exit')))){p.kind='exit';p.t=0;}
+    }else if(p.kind==='exit'){
+      p.t+=dt*hurry;p.a=Math.min(1,p.t/0.3);p.yo=-8+Math.min(1,p.t/0.4)*8;
+      if(p.t>0.4){p.kind='away';p.yo=0;}
+    }else if(p.kind==='away'){
+      p.X+=p.dir*22*dt;p.ph+=dt*10;
+      const d=Math.abs(p.X-p.sx);if(d>285)p.a=Math.max(0,1-(d-285)/30);if(p.a<=0)p.kind='gone';
+    }else if(p.kind==='wait'){
+      if(open&&Math.abs(p.door-pos)<400&&(stopT>p.delay||state==='bell')&&!doorBusy(p.door))p.kind='toDoor';
+    }else if(p.kind==='toDoor'){
+      const dx=p.door-p.X,step=24*hurry*dt;p.ph+=dt*10*hurry;
+      if(Math.abs(dx)<=step){p.X=p.door;p.kind='enter';p.t=0;}else p.X+=Math.sign(dx)*step;
+      p.yo=Math.max(-5,p.yo-dt*6*hurry);
+    }else if(p.kind==='enter'){
+      p.t+=dt*hurry;p.yo=-5-p.t*10;p.a=Math.max(0,1-p.t/0.35);if(p.t>0.35)p.kind='gone';
+    }
+  }
+  if(people.some(p=>p.kind==='gone'))people=people.filter(p=>p.kind!=='gone');
+}
+function drawPeople(camX){
+  for(const p of people){
+    const x=p.X-camX;if(x<-30||x>bw+30||p.a<=0)continue;
+    const L=p.look,h=L.h,y=ty-5+p.yo,walking=p.kind==='toDoor'||p.kind==='away';
+    const sw=walking?Math.sin(p.ph)*2.2*h:0,dir=p.kind==='away'?p.dir:(p.kind==='toDoor'?(Math.sign(p.door-p.X)||1):1);
+    ctx.globalAlpha=p.a;
+    if(L.bag===1){ctx.fillStyle='#5b6b8c';rr(x-dir*7*h-2.5*h,y-8*h,5*h,7*h,1.2);ctx.fill();
+      ctx.strokeStyle='#3b4660';ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(x-dir*7*h,y-8*h);ctx.lineTo(x-dir*4*h,y-12*h);ctx.stroke();}
+    ctx.fillStyle=L.pants;ctx.fillRect(x-2.4*h+sw*0.5,y-9*h,2.2*h,9*h);ctx.fillRect(x+0.2*h-sw*0.5,y-9*h,2.2*h,9*h);
+    if(L.bag===2){ctx.fillStyle='#7a5c3e';rr(x-dir*4*h-1.3*h,y-17*h,2.6*h,7*h,1);ctx.fill();}
+    ctx.fillStyle=L.shirt;rr(x-3.2*h,y-18*h,6.4*h,10*h,2*h);ctx.fill();
+    ctx.fillStyle=L.skin;ctx.beginPath();ctx.arc(x,y-21.5*h,3.2*h,0,7);ctx.fill();
+    ctx.fillStyle=L.hair;ctx.beginPath();ctx.arc(x,y-22.2*h,3.3*h,Math.PI,0);ctx.fill();
+    ctx.globalAlpha=1;
+  }
+}
+/* しゅべつ・いきさき を こえで いう ことば */
+function typeJa(ty){return ty.y;}
+function typeEn(ty,k){return ty.en==='S-TRAIN'?'the S-TRAIN':(ty.en.startsWith('Limited')||ty.en.startsWith('Haijima Liner')?'the '+ty.en+' train':'the Seibu '+enLine(k)+' '+ty.en+' train');}
+/* ちかてつへ のりいれる でんしゃが 小竹向原に つく とき（ここから さきは 東京メトロ） */
+function thruAt(k){const ty=tyAt(k-1);return ty.thru&&idx(k)===0?ty.thru:null;}
+function allInfo(k){const j=trip.allFrom(k);if(j<0)return null;return st(j);}
+function startRunning(){
+  const k=kNear(pos),tg=nextStop(k),nx=st(tg),d=dest(k),ty=tyAt(k),af=allInfo(k);
+  depLog[k]=delay;target=tg;announced=false;state='running';v=Math.max(v,40);spawnWaiting(target);
+  carChime();
+  const ja2=af?af[1]+'から さきは、かくえきに とまります。':'';
+  if(isEnd(k)){
+    announce('きょうも せいぶせんを ごりよう いただきまして、ありがとうございます。この でんしゃは、'+typeJa(ty)+'、'+d[1]+'ゆき です。つぎは、'+nx[1]+'です。'+ja2,
+      'This is '+typeEn(ty,k)+' bound for '+d[2]+'. The next station is '+enSt(nx)+'.',900);
+    led('きょうも 西武線を ごりよう いただきまして ありがとうございます  この でんしゃは '+ty.k+' '+d[0]+'ゆき です  つぎは '+nx[0]+' '+fmt(arrMin(tg)+delay)+'着'+(af?'  '+af[0]+'から さきは 各駅に とまります':'')+'  Next '+enSt(nx));
+  }else{
+    announce('つぎは、'+nx[1]+'です。'+ja2,'The next station is '+enSt(nx)+'.',900);
+    led('つぎは '+nx[0]+'（'+nx[1]+'） '+fmt(arrMin(tg)+delay)+'着  Next '+enSt(nx)+'   この でんしゃは '+ty.k+' '+d[0]+'ゆき です'+(af?'  '+af[0]+'から さきは 各駅に とまります':''));
+  }
+}
+function approach(){
+  const nx=st(target);
+  carChime();
+  const th=thruAt(target);
+  if(th){
+    announce('まもなく、'+nx[1]+'です。この でんしゃは、'+nx[1]+'から、とうきょうメトロせんに はいります。','We will soon be arriving at '+enSt(nx)+'. This train will continue on the Tokyo Metro Line to '+th[2]+'.',900);
+    led('まもなく '+nx[0]+' です  この でんしゃは '+nx[0]+'から 東京メトロ線に はいります  '+th[0]+'ゆき');
+  }else if(isEnd(target)){
+    announce('まもなく、しゅうてん、'+nx[1]+'です。おわすれものの ないよう ごちゅうい ください。','We will soon arrive at '+enSt(nx)+', the last stop.',900);
+    led('まもなく しゅうてん '+nx[0]+' です  おわすれものの ないよう ごちゅうい ください  Arriving at '+nx[2]+', the last stop');
+  }else{
+    announce('まもなく、'+nx[1]+'です。','We will soon be arriving at '+enSt(nx)+'.',900);
+    led('まもなく '+nx[0]+'（'+nx[1]+'） です  Arriving at '+nx[2]);
+  }
+}
+let delayLog={},depLog={},segEstop=false,justRecovered=false;
+/* えきに ついた・とおった とき。きんきゅう ていしが なければ おくれを 1ぷん とりもどす（かいふく うんてん） */
+function stationReached(k){if(k in delayLog)return;
+  if(delay>0&&!segEstop){delay--;if(delay===0)justRecovered=true;}
+  segEstop=false;delayLog[k]=delay;
+  if(justRecovered&&!atStation()){justRecovered=false;led('おくれを とりもどしました  ただいま ていじ うんてん です');}}
+function arrive(){
+  v=0;pos=X(target);state='stopped';stopT=0;spawnAlight(target);stationReached(target);const rec=justRecovered;justRecovered=false;
+  pinpon();
+  const n=st(target),end=isEnd(target),th=thruAt(target);
+  if(th){announce(n[1]+'、'+n[1]+'です。ここから さきは、とうきょうメトロせん です。せいぶせんの うんてんは ここまで。おつかれさまでした。',null,600,true);
+    led(n[0]+'（'+n[1]+'） '+n[2]+'   ここから さきは 東京メトロ線 '+th[0]+'ゆき  せいぶせんの うんてんは ここまで');
+    showBanner(n[0]+' とうちゃく',fmt(arrMin(target)+delay),'ここから 東京メトロ線');return;}
+  announce(n[1]+'、'+n[1]+'です。'+(rec?'この でんしゃは、おくれを とりもどし、ていじに とうちゃく いたしました。':'')+(end?'きょうも せいぶせんを ごりよう いただきまして、ありがとうございました。':''),null,600,true);
+  led(n[0]+'（'+n[1]+'） '+n[2]+(rec?'   おくれを とりもどしました':'')+(end?'   しゅうてん です  ごじょうしゃ ありがとうございました':''));
+  showBanner(n[0]+(end?' しゅうてん':'')+' とうちゃく',fmt(arrMin(target)+delay),delay>0?delay+'ふん おくれ':'');
+}
+function showBanner(label,time,sub){$('bannerLabel').textContent=label;$('bannerTime').textContent=time;$('bannerSub').textContent=sub||'';$('bannerSub').hidden=!sub;$('banner').style.setProperty('--lc',line.c);$('banner').hidden=false;}
+function horn(){ensureAudio();hornSnd();hornT=1.4;}
+let crewT=0,crewText='';
+function whistle(){if(!AC)return;const t=AC.currentTime;const o=AC.createOscillator(),l=AC.createOscillator(),lg=AC.createGain(),g=AC.createGain();
+  o.type='sine';o.frequency.value=2900;l.frequency.value=28;lg.gain.value=90;l.connect(lg);lg.connect(o.frequency);
+  g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.16,t+0.03);g.gain.setValueAtTime(0.16,t+0.75);g.gain.exponentialRampToValueAtTime(0.0001,t+0.9);
+  o.connect(g);g.connect(master);o.start(t);l.start(t);o.stop(t+1);l.stop(t+1);}
+function crewSay(text){
+  if(!soundOn||!('speechSynthesis' in window))return;
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ja-JP';if(jaVoice)u.voice=jaVoice;u.rate=1.08;u.pitch=0.8;u.volume=1;speechSynthesis.speak(u);}catch(e){}
+}
+
+/* ---------- きんきゅう ていし ---------- */
+let delay=0,estT=0,estWait=7,est=null,squeal=null;
+// 3分の遅れで7秒。長い見合わせほど、実際の待ち時間の増え方を緩やかにする。
+function emergencyWaitSeconds(minutes){return Math.round(7*Math.log1p(minutes)/Math.log(4));}
+const EREASONS=[
+ {t:'ふみきり',ic:'cross',d:'ふみきりの ボタンが おされた',ja:'ふみきりの ひじょうボタンが おされた',en:'an emergency button being pressed at a railroad crossing'},
+ {t:'じんしんじこ',ic:'person',d:'きゅうご・かくにん',ja:'じんしんじこの',en:'an accident involving a person',delayMinutes:90},
+ {t:'どうぶつ',ic:'paw',d:'どうぶつが はいった',ja:'せんろに どうぶつが はいった',en:'an animal on the tracks'},
+ {t:'つよい かぜ',ic:'wind',d:'かぜが つよく ふいた',ja:'つよい かぜが ふいた',en:'strong winds'},
+ {t:'おちもの',ic:'rock',d:'ものが おちていた',ja:'せんろに ものが おちていた',en:'an object on the tracks'},
+ {t:'おおあめ',ic:'rain',d:'あめが たくさん ふった',ja:'おおあめの',en:'heavy rain'},
+ {t:'おおゆき',ic:'snow',d:'ゆきが たくさん ふった',ja:'おおゆきの',en:'heavy snow'},
+ {t:'じしん',ic:'quake',d:'じしんが あった',ja:'じしんが あった',en:'an earthquake'},
+ {t:'ひじょうボタン',ic:'sos',d:'ボタンが おされた',ja:'しゃないの ひじょうボタンが おされた',en:'an emergency button being pressed'},
+ {t:'ていでん',ic:'power',d:'でんきが とまった',ja:'ていでんの',en:'a power outage'}
+];
+function alarm(){if(!AC)return;const t=AC.currentTime;for(let i=0;i<6;i++)tone(i%2?880:1180,t+i*0.22,0.18,'square',0.09);}
+function brakeSqueal(){if(!AC)return;const t=AC.currentTime;const src=AC.createBufferSource();src.buffer=noise();src.loop=true;const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=3200;f.Q.value=6;
+  const g=AC.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.12,t+0.2);src.connect(f);f.connect(g);g.connect(master);src.start(t);squeal={src,g};}
+function stopSqueal(){if(squeal&&AC){const t=AC.currentTime;squeal.g.gain.setTargetAtTime(0.0001,t,0.08);squeal.src.stop(t+0.5);}squeal=null;}
+function emergency(r){
+  if(!canEmergency())return;
+  segEstop=true;est=r||EREASONS[Math.floor(Math.random()*EREASONS.length)];state='estop';estT=0;
+  showBanner(est.t,'きんきゅう ていし','あんぜんに とまります');
+  alarm();brakeSqueal();stopSpeech();led('きんきゅう ていし します  ごちゅうい ください');
+}
+function emergencyStopped(){
+  stopSqueal();state='estopWait';estT=0;const add=est.delayMinutes||3+Math.floor(Math.random()*6);delay+=add;
+  estWait=emergencyWaitSeconds(add);
+  const status=est.delayMinutes?'きゅうごと あんぜんかくにんを おこなって おります。うんてん さいかいまで、やく90ぷんを みこんで おります。':'あんぜんを かくにん して おります。';
+  showBanner(est.t,est.delayMinutes?'やく90ぷん':'あんぜん かくにん',est.delayMinutes?'きゅうごと あんぜんかくにん':'しばらく おまち ください');
+  announce('ただいま、'+est.ja+' ため、きんきゅう ていし いたしました。おいそぎの ところ、ごめいわくを おかけして もうしわけ ございません。'+status+'しばらく おまち ください。',
+    'We have made an emergency stop due to '+est.en+'. Please wait a moment.',400,true);
+  led('ただいま '+est.ja+' ため きんきゅう ていし しました  あんぜんを かくにん して います  しばらく おまち ください');
+}
+function emergencyResume(){
+  state='running';v=0;
+  $('banner').hidden=true;
+  carChime();announce('あんぜんが かくにん できました。まもなく、うんてんを さいかい いたします。この でんしゃは、やく'+delay+'ふん おくれて おります。','We will now resume operation. This train is running about '+delay+' minutes late.',600,true);
+  const nx=st(target);led('うんてんを さいかい します  やく '+delay+'ふん おくれ  つぎは '+nx[0]+' '+fmt(arrMin(target)+delay)+'着');
+}
+/* いちばん ちかい ふみきりまでの きょり */
+function crossDist(){const k=kAt(pos);let m=1e9;for(let j=k-1;j<=k+1;j++)feat(j).cr.forEach(x=>{m=Math.min(m,Math.abs(x-(pos+FRONT)),Math.abs(x-pos));});return m;}
+let kanT=0;
+function update(dt){
+  const prevJoint=Math.floor(pos/JOINT),prevK=kAt(pos);
+  if(state==='stopped'){
+    stopT+=dt;
+    if(stopT>0.6&&doorAnim<1){if(doorAnim===0)doorSnd();doorAnim=Math.min(1,doorAnim+dt*1.5);}
+    if(auto&&stopT>6)depart();
+    else if(holding()&&stopT>3.5&&!paxBusy())depart();/* ながおし したままなら、のりおりが おわったら つぎの えきへ */
+  }else if(state==='bell'){
+    bellT+=dt;if(bellT>1.5&&!paxBusy()){state='closing';doorSnd();}
+  }else if(state==='closing'){
+    doorAnim-=dt*1.2;
+    if(doorAnim<=0){doorAnim=0;startRunning();}
+  }else if(state==='running'){
+    if(holding()||auto)v+=ACC*dt;else v-=COAST*dt;
+    {const vm=segVmax(curK());if(v>vm)v=Math.max(vm,v-BRAKE*dt);v=Math.max(0,v);}
+    const rem=X(target)-pos;
+    if(!announced&&rem<4200&&(!speechBusy()||rem<2600)){announced=true;approach();}
+    if(rem<=v*v/(2*BRAKE)+2)state='braking';
+    else pos+=v*dt;
+  }
+  if(state==='estop'){
+    v-=420*dt;const rem=X(target)-pos;
+    if(v<=0){v=0;emergencyStopped();}
+    else{const step=v*dt;if(step>=rem){if(est.delayMinutes){pos=X(target)-0.5;v=0;emergencyStopped();}else{stopSqueal();delay+=2;arrive();}}else pos+=step;}
+  }else if(state==='estopWait'){
+    estT+=dt;if(estT>=estWait&&(!speechBusy()||estT>=estWait+9))emergencyResume();
+  }
+  if(state==='braking'){
+    const rem=X(target)-pos;
+    if(!announced){announced=true;approach();}
+    if(rem<=0.5){arrive();}
+    else{
+      v-=(v*v/(2*rem))*dt;if(v<25)v=25;
+      const step=v*dt;
+      if(step>=rem)arrive();else pos+=step;
+    }
+  }
+  {const nk=kAt(pos);for(let k=prevK+1;k<=nk;k++)stationReached(k);}
+  paxUpdate(dt);
+  if(v>40&&Math.floor(pos/JOINT)!==prevJoint)clack();
+  if(hornT>0)hornT-=dt;
+  if(crewT>0)crewT-=dt;
+  kanT-=dt;{const cd=crossDist();if(cd<1600&&kanT<=0){kan(1-cd/1600);kanT=0.42;}}
+  if(AC&&motorGain){
+    const r=v/MAXV,t=AC.currentTime,S=SER();
+    motorOsc.frequency.setTargetAtTime((S.motor||110)+r*650,t,0.1);
+    motorFilt.frequency.setTargetAtTime(300+r*1600,t,0.1);
+    motorGain.gain.setTargetAtTime(v>1?0.025+0.035*r:0,t,0.15);
+  }
+}
+
+/* ---------- え ---------- */
+function resize(){
+  const r=cv.getBoundingClientRect();DPR=Math.min(2,window.devicePixelRatio||1);
+  W=r.width;H=r.height;cv.width=Math.max(1,Math.round(W*DPR));cv.height=Math.max(1,Math.round(H*DPR));
+  s=Math.min(H/400,W/580);bw=W/s;bh=H/s;ty=bh-80;
+}
+/* ---------- じかんの いろ（そら・くらさ） ---------- */
+const SKY=[[0,'#0b1430','#1c2a55'],[290,'#0b1430','#1c2a55'],[340,'#2c3f7a','#e9946a'],[400,'#5cbcff','#dff4ff'],[960,'#5cbcff','#dff4ff'],[1030,'#4a68b0','#f5a76c'],[1090,'#1f2b5c','#c46a6a'],[1140,'#0b1430','#1c2a55'],[1440,'#0b1430','#1c2a55']];
+const DARK=[[0,1],[290,1],[350,0.45],[410,0],[980,0],[1060,0.4],[1140,1],[1440,1]];
+function hx(c){const n=parseInt(c.slice(1),16);return[n>>16,(n>>8)&255,n&255];}
+function mix(a,b,f){const A=hx(a),B=hx(b);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*f).toString(16).padStart(2,'0')).join('');}
+function keyAt(tab,m,i){for(let j=0;j<tab.length-1;j++){const a=tab[j],b=tab[j+1];if(m>=a[0]&&m<=b[0]){const f=(m-a[0])/((b[0]-a[0])||1);return typeof a[i]==='number'?a[i]+(b[i]-a[i])*f:mix(a[i],b[i],f);}}return tab[0][i];}
+let dayM=720,night=0;
+function tint(c){return night>0?mix(c,'#101a3a',night*0.6):c;}
+
+/* ---------- くかんごとの けしき ---------- */
+function sceneFor(k){
+  const sc=Object.assign({far:'rolling',near:'town'},trip.baseAt(k).scene||{});
+  const o=SCENE[pairKey(k)];if(o)Object.assign(sc,o);
+  return sc;
+}
+function cityness(){const k=kAt(pos);let c=0;[k,k+1].forEach(j=>{const n=CITY[st(j)[0]];if(n)c=Math.max(c,n*(1-Math.abs(pos-X(j))/3600));});return Math.max(0,c);}
+let farCur='rolling',farPrev='rolling',farF=1,lastBgT=0;
+
+function cloud(x,y,k){ctx.fillStyle=night>0.5?'rgba(150,160,190,.35)':(night>0?'rgba(255,236,220,.85)':'rgba(255,255,255,.92)');ctx.beginPath();ctx.arc(x,y,22*k,0,7);ctx.arc(x+26*k,y-10*k,28*k,0,7);ctx.arc(x+56*k,y,22*k,0,7);ctx.rect(x,y,56*k,22*k);ctx.fill();}
+function hills(o,base,amp,col){ctx.fillStyle=tint(col);ctx.beginPath();ctx.moveTo(0,ty);for(let x=0;x<=bw+8;x+=8){const u=x+o;ctx.lineTo(x,ty-base-amp*Math.sin(u/300)-amp*0.45*Math.sin(u/111+2));}ctx.lineTo(bw,ty);ctx.closePath();ctx.fill();}
+function drawFar(type,camX,t,a){
+  if(a<=0.01)return;ctx.globalAlpha=a;
+  const o=camX*0.06;
+  if(type==='lake'){
+    hills(camX*0.05,105,16,'#8fb0cf');
+    const hy=ty-96,g=ctx.createLinearGradient(0,hy,0,ty);g.addColorStop(0,tint('#6fb2db'));g.addColorStop(1,tint('#9ad3ef'));ctx.fillStyle=g;ctx.fillRect(0,hy,bw,ty-hy);
+    ctx.fillStyle=night>0.5?'rgba(255,240,180,.35)':'rgba(255,255,255,.6)';for(let i=0;i<12;i++){const x=((i*157+hash(i)*90-camX*0.12)%bw+bw)%bw,y=hy+8+hash(i+5)*40;ctx.fillRect(x,y,8,1.2);}
+    /* ダムの とう（まるい やね） */
+    for(let i=Math.floor((o-300)/1800);i<=Math.floor((o+bw+300)/1800);i++){const x=i*1800+500-o;ctx.fillStyle=tint('#e9e3d3');ctx.fillRect(x-9,hy-26,18,26);ctx.fillStyle=tint('#3f7f6a');ctx.beginPath();ctx.arc(x,hy-26,11,Math.PI,0);ctx.fill();ctx.fillRect(x-1,hy-44,2,8);}
+  }else if(type==='range'||type==='buko'){
+    const oo=camX*0.08,path=()=>{ctx.beginPath();ctx.moveTo(0,ty);for(let x=0;x<=bw+6;x+=6){const u=x+oo;ctx.lineTo(x,ty-110-62*Math.abs(Math.sin(u/210))-34*Math.abs(Math.sin(u/97+1))-14*Math.sin(u/41));}ctx.lineTo(bw,ty);ctx.closePath();};
+    path();ctx.fillStyle=tint('#7f98c4');ctx.fill();
+    if(type==='buko'){/* だんだんに けずられた おおきな やま（ぶこうさん） */
+      for(let i=Math.floor((o-500)/2400);i<=Math.floor((o+bw+500)/2400);i++){const x=i*2400+1000-o,T=ty-300;
+        ctx.fillStyle=tint('#6f88a8');ctx.beginPath();ctx.moveTo(x-330,ty-40);ctx.quadraticCurveTo(x-200,T+10,x-60,T);ctx.lineTo(x+20,T+4);ctx.quadraticCurveTo(x+200,T+60,x+330,ty-40);ctx.closePath();ctx.fill();
+        ctx.fillStyle=tint('#c9c7c0');for(let j=0;j<6;j++){const y=T+14+j*14,w=26+j*13;ctx.fillRect(x+10-j*4,y,w,7);}
+        ctx.fillStyle=tint('#b5b2a8');for(let j=0;j<6;j++){const y=T+21+j*14,w=26+j*13;ctx.fillRect(x+10-j*4,y,w,2);}}
+    }
+  }else if(type==='skyline'){
+    hills(camX*0.05,95,10,'#a7bbd8');
+    for(let i=Math.floor((o-200)/60);i<=Math.floor((o+bw+200)/60);i++){const x=i*60-o,r=hash(i+300),h=60+r*120+(hash(i+8)<0.08?120:0),w=34+hash(i+31)*22;
+      ctx.fillStyle=tint(['#8ea2c2','#9badc9','#7f93b5','#a9b7cf'][((i%4)+4)%4]);ctx.fillRect(x,ty-40-h,w,h);
+      if(night>0.4){ctx.fillStyle='rgba(255,214,107,'+night*0.8+')';for(let yy=ty-40-h+6;yy<ty-48;yy+=9)for(let xx=x+4;xx<x+w-4;xx+=8)if(hash(xx*1.7+yy)<0.4)ctx.fillRect(xx,yy,3,3);}}
+  }else if(type==='dome'){
+    hills(camX*0.05,100,14,'#9bb8a4');
+    for(let i=Math.floor((o-400)/2600);i<=Math.floor((o+bw+400)/2600);i++){const x=i*2600+900-o,y=ty-60;
+      ctx.fillStyle=tint('#3f8a52');ctx.beginPath();ctx.ellipse(x,y,190,40,0,Math.PI,0);ctx.fill();
+      ctx.fillStyle=tint('#f2f4f7');ctx.beginPath();ctx.ellipse(x,y-8,170,58,0,Math.PI,0);ctx.fill();
+      ctx.strokeStyle=tint('#c4ccd8');ctx.lineWidth=1.5;for(let j=-4;j<=4;j++){ctx.beginPath();ctx.ellipse(x,y-8,Math.abs(j)*40+4,58,0,Math.PI,0);ctx.stroke();}
+      ctx.fillStyle=night>0.4?'#ffe9a0':tint('#9fb3c8');ctx.fillRect(x-170,y-12,340,4);}
+  }else{
+    hills(camX*0.06,120,40,'#9bb3d6');
+  }
+  ctx.globalAlpha=1;
+}
+function drawBackground(camX,t){
+  const dt=Math.min(0.1,Math.max(0,t-lastBgT));lastBgT=t;
+  dayM=((nowMin()%1440)+1440)%1440;night=keyAt(DARK,dayM,1);
+  const g=ctx.createLinearGradient(0,0,0,ty);g.addColorStop(0,keyAt(SKY,dayM,1));g.addColorStop(1,keyAt(SKY,dayM,2));
+  ctx.fillStyle=g;ctx.fillRect(0,0,bw,bh);
+  /* ほし・つき・たいよう */
+  if(night>0.3){ctx.fillStyle='rgba(255,255,255,'+((night-0.3)*1.2)+')';for(let i=0;i<70;i++){const x=hash(i*3+1)*bw,y=hash(i*7+2)*(ty-140);ctx.fillRect(x,y,i%5?1.2:2,i%5?1.2:2);}
+    const mx=bw*0.78,my=Math.max(40,(ty-200)*0.3);ctx.fillStyle='rgba(255,246,214,'+night+')';ctx.beginPath();ctx.arc(mx,my,16,0,7);ctx.fill();ctx.fillStyle=keyAt(SKY,dayM,1);ctx.beginPath();ctx.arc(mx+7,my-4,14,0,7);ctx.fill();}
+  if(dayM>330&&dayM<1110){const f=(dayM-330)/780,sx=bw*(0.08+0.84*f),sy=(ty-120)-Math.sin(f*Math.PI)*(ty-170);
+    const low=1-Math.sin(f*Math.PI);ctx.fillStyle=mix('#fff3b0','#ff8a3d',Math.min(1,low*1.3));ctx.globalAlpha=Math.max(0.2,1-night);ctx.beginPath();ctx.arc(sx,Math.max(30,sy),18,0,7);ctx.fill();ctx.globalAlpha=1;}
+  const co=camX*0.04+(reduced?0:t*6);
+  for(let i=Math.floor(co/420)-1;i<=Math.floor((co+bw)/420)+1;i++){const x=i*420+hash(i)*200-co,y=30+hash(i+3)*Math.max(10,ty-280);cloud(x,y,0.8+hash(i+5)*0.6);}
+  /* とおくの けしき（くかんが かわると ゆっくり いれかわる） */
+  const sc=sceneFor(kAt(pos)),key=sc.far;
+  if(key!==farCur){farPrev=farCur;farCur=key;farF=0;}farF=Math.min(1,farF+dt/1.6);
+  drawFar(farPrev,camX,t,1-farF);drawFar(farCur,camX,t,farF);
+  const f1=camX*0.18;ctx.fillStyle=tint(sc.near==='forest'?'#7fbf8f':'#93cfa8');ctx.beginPath();ctx.moveTo(0,bh);
+  for(let x=0;x<=bw+8;x+=8)ctx.lineTo(x,ty-70-36*(0.5+0.5*Math.sin((x+f1)/260)));
+  ctx.lineTo(bw,bh);ctx.closePath();ctx.fill();
+  const f2=camX*0.32;ctx.fillStyle=tint('#6dbb6a');ctx.beginPath();ctx.moveTo(0,bh);
+  for(let x=0;x<=bw+8;x+=8)ctx.lineTo(x,ty-34-14*Math.sin((x+f2)/170)-8*Math.sin((x+f2)/53));
+  ctx.lineTo(bw,bh);ctx.closePath();ctx.fill();
+  /* ちかくの けしき */
+  const no=camX*0.55,city=cityness(),winC=night>0.45?'#ffd56b':tint('#5b8bd6');
+  if(sc.near==='field'&&city<0.5){ctx.fillStyle=tint('#c2c35c');ctx.fillRect(0,ty-26,bw,20);ctx.strokeStyle=tint('#8e9a45');ctx.lineWidth=1.2;ctx.beginPath();
+    for(let i=Math.floor(no/70);i<=Math.floor((no+bw)/70)+1;i++){const x=i*70-no;ctx.moveTo(x,ty-26);ctx.lineTo(x-14,ty-6);}ctx.moveTo(0,ty-16);ctx.lineTo(bw,ty-16);ctx.stroke();}
+  if(sc.near==='tea'&&city<0.5){/* ちゃばたけ（さやまちゃ）：まるい ちゃの きの れつ */
+    ctx.fillStyle=tint('#8fb35a');ctx.fillRect(0,ty-30,bw,24);
+    for(let r=0;r<3;r++){const y=ty-30+r*8,o2=no*(0.9+r*0.08);ctx.fillStyle=tint(['#3f7f3a','#4c8f41','#5aa04a'][r]);
+      for(let i=Math.floor(o2/26)-1;i<=Math.floor((o2+bw)/26)+1;i++){const x=i*26-o2;ctx.beginPath();ctx.ellipse(x,y+5,13,5,0,Math.PI,0);ctx.fill();}}}
+  const step=sc.near==='town'?110:150;
+  for(let i=Math.floor(no/step)-1;i<=Math.floor((no+bw)/step)+1;i++){
+    const r=hash(i),x=i*step+hash(i+7)*60-no,y=ty-16;
+    if(hash(i+77)<city){/* ビル・マンション */const h=50+hash(i+11)*90,w=34+hash(i+12)*30;ctx.fillStyle=tint(['#b8c2cf','#a3afc0','#c9cfd8','#d8cdb8'][((i%4)+4)%4]);ctx.fillRect(x-w/2,y-h,w,h);
+      ctx.fillStyle=winC;for(let yy=y-h+6;yy<y-8;yy+=10)for(let xx=x-w/2+5;xx<x+w/2-6;xx+=9){if(night>0.45&&hash(xx*0.7+yy)<0.45)continue;ctx.fillRect(xx,yy,5,5);}continue;}
+    if(sc.near==='forest'){if(r<0.85){ctx.fillStyle=tint('#6b4a32');ctx.fillRect(x-2,y-12,4,12);ctx.fillStyle=tint(r<0.4?'#2f7a3e':'#3a8f4a');ctx.beginPath();ctx.moveTo(x-14,y-8);ctx.lineTo(x,y-46-r*14);ctx.lineTo(x+14,y-8);ctx.closePath();ctx.fill();}continue;}
+    if(sc.near==='tea'&&r<0.75)continue;
+    const houseP=sc.near==='field'?0.62:0.9,treeP=sc.near==='field'?0.5:0.28;
+    if(r<treeP){ctx.fillStyle=tint('#8a5a3b');ctx.fillRect(x-3,y-14,6,14);ctx.fillStyle=tint(r<0.15?'#2f8f46':'#3fa34d');ctx.beginPath();ctx.arc(x,y-24,15,0,7);ctx.fill();}
+    else if(r<houseP){const c=(i&1)?'#f4e3c1':(r<0.6?'#ffffff':'#ffd9c7'),tall=sc.near==='town'&&hash(i+5)<0.35;
+      if(tall){/* アパート */ctx.fillStyle=tint(c);ctx.fillRect(x-20,y-44,40,44);ctx.fillStyle=tint('#8d99ab');for(let yy=y-38;yy<y-6;yy+=14)ctx.fillRect(x-20,yy+9,40,2);ctx.fillStyle=winC;for(let yy=y-38;yy<y-6;yy+=14)for(let xx=x-15;xx<x+15;xx+=10)ctx.fillRect(xx,yy,6,6);continue;}
+      ctx.fillStyle=tint(c);ctx.fillRect(x-16,y-22,32,22);
+      ctx.fillStyle=tint(r<0.6?'#c0392b':'#2e5c9a');ctx.beginPath();ctx.moveTo(x-20,y-22);ctx.lineTo(x,y-38);ctx.lineTo(x+20,y-22);ctx.closePath();ctx.fill();
+      ctx.fillStyle=winC;ctx.fillRect(x-9,y-16,7,7);ctx.fillRect(x+3,y-16,7,7);}
+  }
+}
+
+function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h);}
+/* えきの かんばん：えきばんごう・えきめい・よみ・ローマじ・となりの えき */
+function drawSign(c,k){
+  const n=st(k),p=st(k-1),q=st(k+1),nc=numColor(n[3]);
+  const T=ty-242,W=270;
+  ctx.fillStyle='#8996aa';ctx.fillRect(c-86,ty-154,5,14);ctx.fillRect(c+81,ty-154,5,14);
+  ctx.fillStyle='#ffffff';ctx.strokeStyle='#14213d';ctx.lineWidth=3;rr(c-W/2,T,W,88,10);ctx.fill();ctx.stroke();
+  /* えきばんごう（しかくの なかに ろせんの もじと ばんごう） */
+  if(n[3]){const bx=c-W/2+12,by=T+14;ctx.fillStyle='#fff';ctx.strokeStyle=nc;ctx.lineWidth=3;rr(bx,by,34,34,6);ctx.fill();ctx.stroke();
+    ctx.fillStyle=nc;ctx.fillRect(bx+1.5,by+1.5,31,12);
+    ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='800 9px '+FONT;ctx.fillText(n[3].replace(/\d+/,''),bx+17,by+8);
+    ctx.fillStyle='#14213d';ctx.font='800 15px '+FONT;ctx.fillText(n[3].replace(/^[A-Z]+/,''),bx+17,by+24);}
+  ctx.fillStyle='#14213d';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font='800 11px '+FONT;ctx.fillText(n[1],c+10,T+14,W-80);
+  ctx.font='800 28px '+FONT;ctx.fillText(n[0],c+10,T+35,W-80);
+  ctx.font='500 9px '+FONT;ctx.fillText(n[2],c+10,T+54,W-80);
+  ctx.fillStyle=nc;ctx.fillRect(c-W/2+3,T+62,W-6,4);
+  ctx.fillStyle='#14213d';ctx.font='500 10px '+FONT;const sx=W/2-14,ny=T+76;
+  if(idx(k-1)===idx(k+1)){/* しゅうてん・しはつえき：となりの えきは 1つだけ。でんしゃは みぎに すすむ */ctx.textAlign='right';ctx.fillText(q[0]+'  '+q[1]+' →',c+sx,ny,W-28);}
+  else{ctx.textAlign='left';ctx.fillText('← '+p[0],c-sx,ny,W/2-20);ctx.textAlign='right';ctx.fillText(q[0]+' →',c+sx,ny,W/2-20);}
+}
+function numColor(num){const m=num&&num.match(/^[A-Z]+/);return (m&&NUMC[m[0]])||'#1f5fbf';}
+
+/* ふみきり（おく がわ）：みちと けいほうき。でんしゃが ちかいと ランプが こうごに ひかる */
+function drawCrossingBack(x,near,t){
+  ctx.fillStyle='#7d8590';ctx.beginPath();ctx.moveTo(x-34,ty+2);ctx.lineTo(x-14,ty-40);ctx.lineTo(x+14,ty-40);ctx.lineTo(x+34,ty+2);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#f1f1f1';ctx.fillRect(x-1,ty-38,2,38);
+  const px=x+22;ctx.fillStyle='#3a3f47';ctx.fillRect(px-1.5,ty-78,3,76);
+  ctx.save();ctx.translate(px,ty-74);ctx.fillStyle='#ffd400';ctx.strokeStyle='#14213d';ctx.lineWidth=0.8;
+  [Math.PI/4,-Math.PI/4].forEach(a=>{ctx.save();ctx.rotate(a);ctx.fillRect(-12,-2.2,24,4.4);ctx.fillStyle='#14213d';for(let i=-10;i<12;i+=6)ctx.fillRect(i,-2.2,3,4.4);ctx.fillStyle='#ffd400';ctx.restore();});ctx.restore();
+  const on=near&&!reduced?Math.floor(t*2.4)%2:-1;
+  [-6,6].forEach((o,i)=>{ctx.fillStyle='#22262c';ctx.beginPath();ctx.arc(px+o,ty-60,4.2,0,7);ctx.fill();ctx.fillStyle=(near&&(reduced||on===i))?'#ff2a2a':'#5a1d1d';ctx.beginPath();ctx.arc(px+o,ty-60,3,0,7);ctx.fill();});
+  /* しゃだんき（さがって いる ときは よこ、あがって いる ときは たて） */
+  ctx.strokeStyle='#ffd400';ctx.lineWidth=2.4;ctx.beginPath();
+  if(near){ctx.moveTo(px,ty-30);ctx.lineTo(px-44,ty-30);}else{ctx.moveTo(px,ty-30);ctx.lineTo(px+4,ty-74);}ctx.stroke();
+}
+
+function drawWorld(camX,t){
+  const k0=kAt(camX)-1,k1=kAt(camX+bw)+1;
+  ctx.strokeStyle='#4b5563';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(0,ty-100);ctx.lineTo(bw,ty-100);ctx.stroke();
+  for(let k=k0;k<=k1;k++){
+    const f=feat(k),x0=f.t0-camX,x1=f.t1-camX;
+    if(x1<-200||x0>bw+200)continue;
+    if(f.ug){/* ちかの トンネル */
+      ctx.fillStyle='#8b8577';ctx.fillRect(x0,0,x1-x0,ty+6);
+      ctx.fillStyle='#2b2f3a';ctx.fillRect(x0+(f.t0<X(k)?0:12),ty-150,x1-x0-(f.t0<X(k)?0:12)-(f.t1>X(k+1)?0:12),156);
+      ctx.fillStyle='#ffe7a8';for(let X0=Math.ceil(f.t0/120)*120;X0<f.t1;X0+=120)ctx.fillRect(X0-camX-6,ty-140,12,3);
+      if(f.t0>=X(k)){ctx.fillStyle='#b8bec8';ctx.fillRect(x0-12,ty-160,14,166);}
+      if(f.t1<=X(k+1)){ctx.fillStyle='#b8bec8';ctx.fillRect(x1-2,ty-160,14,166);}
+      continue;}
+    ctx.fillStyle='#3f8f4e';ctx.beginPath();ctx.moveTo(x0-80,ty+6);
+    ctx.bezierCurveTo(x0-20,ty-200,x0+120,ty-250,(x0+x1)/2,ty-250);
+    ctx.bezierCurveTo(x1-120,ty-250,x1+20,ty-200,x1+80,ty+6);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#2f7a3e';for(let x=x0;x<x1;x+=70){ctx.beginPath();ctx.arc(x+20,ty-200+Math.sin(x)*14,14,0,7);ctx.fill();}
+    ctx.fillStyle='#262833';ctx.fillRect(x0,ty-118,x1-x0,124);
+    ctx.fillStyle='#ffd166';for(let X0=Math.ceil(f.t0/90)*90;X0<f.t1;X0+=90){ctx.beginPath();ctx.arc(X0-camX,ty-108,3.2,0,7);ctx.fill();}
+    ctx.strokeStyle='#6b7280';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(x0,ty-100);ctx.lineTo(x1,ty-100);ctx.stroke();
+    ctx.fillStyle='#b8bec8';ctx.fillRect(x0-12,ty-128,14,134);ctx.fillRect(x1-2,ty-128,14,134);
+  }
+  for(let k=k0;k<=k1;k++){const f=feat(k);f.cr.forEach(x=>{const c=x-camX;if(c<-80||c>bw+80)return;drawCrossingBack(c,Math.abs(x-pos)<1600||Math.abs(x-pos-FRONT)<1600,t);});}
+  for(let k=k0;k<=k1;k++){
+    const c=X(k)-camX;if(c<-420||c>bw+420)continue;
+    ctx.fillStyle='#cfd6df';ctx.fillRect(c-310,ty-30,620,24);
+    ctx.fillStyle='#9aa6b8';for(let x=-300;x<=300;x+=100)ctx.fillRect(c+x-3,ty-130,6,104);
+    ctx.fillStyle='#eef1f5';ctx.fillRect(c-330,ty-142,660,14);ctx.fillStyle='#8996aa';ctx.fillRect(c-330,ty-130,660,3);
+    drawSign(c,k);
+  }
+  ctx.fillStyle='#8a94a6';
+  for(let i=Math.floor(camX/300)-1;i<=Math.floor((camX+bw)/300)+1;i++){
+    const X0=i*300+150;if(inTunnel(X0)||nearStation(X0,360))continue;
+    const x=X0-camX;ctx.fillRect(x-2,ty-114,4,118);ctx.fillRect(x-2,ty-108,26,3);
+  }
+  ctx.fillStyle='#b9a27a';ctx.fillRect(0,ty+6,bw,bh-ty);
+  ctx.fillStyle='#9c9488';ctx.fillRect(0,ty+2,bw,9);
+  for(let k=k0;k<=k1;k++){
+    const f=feat(k),x0=f.r0-camX,x1=f.r1-camX;if(x1<-50||x0>bw+50)continue;
+    ctx.fillStyle='#4aa3df';ctx.fillRect(x0,ty+12,x1-x0,bh-ty);
+    ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;
+    for(let y=ty+26;y<bh;y+=16){ctx.beginPath();for(let x=x0+8;x<x1-20;x+=34){ctx.moveTo(x,y);ctx.quadraticCurveTo(x+7,y-4,x+14,y);}ctx.stroke();}
+    ctx.fillStyle='#8792a3';for(let X0=f.r0+40;X0<f.r1;X0+=180)ctx.fillRect(X0-camX-9,ty+12,18,bh-ty);
+    ctx.fillStyle='#55606f';ctx.fillRect(x0,ty+2,x1-x0,12);
+  }
+  ctx.fillStyle='#6b4a32';
+  for(let i=Math.floor(camX/24);i<=Math.floor((camX+bw)/24)+1;i++)ctx.fillRect(i*24-camX,ty+2,9,5);
+  ctx.fillStyle='#7b8494';ctx.fillRect(0,ty-1,bw,3);
+  /* ふみきりの みち（てまえ） */
+  for(let k=k0;k<=k1;k++){feat(k).cr.forEach(x=>{const c=x-camX;if(c<-80||c>bw+80)return;ctx.fillStyle='#7d8590';ctx.beginPath();ctx.moveTo(c-30,ty+2);ctx.lineTo(c+30,ty+2);ctx.lineTo(c+52,bh);ctx.lineTo(c-52,bh);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#f1f1f1';ctx.fillRect(c-1,ty+12,2,bh-ty);ctx.fillStyle='#55606f';ctx.fillRect(c-30,ty+1,60,4);});}
+}
+
+/* ---------- でんしゃの え（しゃりょう SERIES の かたちと いろ） ---------- */
+const FRONT=290;/* せんとうの いち（がめんの まんなかから） */
+const NOSE={flat:5,slant:12,egg:24,nra:38,laview:64,agt:10};
+const DOORF={4:[.11,.37,.63,.89],3:[.15,.5,.85],2:[.2,.8],1:[.07]};
+function carLen(S){return S.len||200;}
+function doorXs(S,x0,x1,cab){const span=(cab?x1-NOSE[S.front]-16:x1)-x0;return (DOORF[S.doors]||DOORF[4]).map(f=>x0+span*f);}
+function carPath(x0,x1,top,bot,cab,S){
+  ctx.beginPath();ctx.moveTo(x0,bot);ctx.lineTo(x0,top+4);ctx.quadraticCurveTo(x0,top,x0+4,top);
+  if(!cab){ctx.lineTo(x1-4,top);ctx.quadraticCurveTo(x1,top,x1,top+4);ctx.lineTo(x1,bot);}
+  else switch(S.front){
+    case 'slant':ctx.lineTo(x1-12,top);ctx.quadraticCurveTo(x1-7,top,x1-5,top+4);ctx.lineTo(x1,top+24);ctx.lineTo(x1,bot);break;
+    case 'egg':ctx.lineTo(x1-24,top);ctx.bezierCurveTo(x1-8,top,x1+1,top+12,x1+1,top+30);ctx.lineTo(x1,bot);break;
+    case 'nra':ctx.lineTo(x1-38,top);ctx.bezierCurveTo(x1-24,top,x1-6,top+18,x1-1,top+32);ctx.quadraticCurveTo(x1+1,top+38,x1,bot);break;
+    case 'laview':ctx.lineTo(x1-64,top);ctx.bezierCurveTo(x1-26,top,x1+2,top+18,x1+2,top+36);ctx.quadraticCurveTo(x1+2,bot,x1-8,bot);break;
+    case 'agt':ctx.lineTo(x1-10,top);ctx.quadraticCurveTo(x1,top,x1,top+12);ctx.lineTo(x1,bot);break;
+    default:ctx.lineTo(x1-5,top);ctx.quadraticCurveTo(x1-1,top,x1-0.5,top+5);ctx.lineTo(x1,bot);
+  }
+  ctx.closePath();
+}
+function cabWindow(x1,top,bot,S){
+  ctx.fillStyle='#16202e';ctx.beginPath();
+  switch(S.front){
+    case 'slant':ctx.moveTo(x1-24,top+9);ctx.lineTo(x1-8,top+9);ctx.lineTo(x1-3,top+24);ctx.lineTo(x1-24,top+24);break;
+    case 'egg':ctx.moveTo(x1-30,top+8);ctx.lineTo(x1-14,top+6);ctx.quadraticCurveTo(x1-3,top+12,x1,top+27);ctx.lineTo(x1-30,top+27);break;
+    case 'nra':ctx.moveTo(x1-46,top+9);ctx.lineTo(x1-30,top+5);ctx.quadraticCurveTo(x1-16,top+12,x1-8,top+25);ctx.lineTo(x1-46,top+25);break;
+    case 'laview':ctx.moveTo(x1-62,top+5);ctx.bezierCurveTo(x1-28,top+3,x1-3,top+17,x1-1,top+34);ctx.quadraticCurveTo(x1-30,top+31,x1-62,top+31);break;
+    case 'agt':ctx.rect(x1-18,top+8,17,20);break;
+    default:ctx.rect(x1-21,top+10,19,16);
+  }
+  ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.22)';ctx.fillRect(x1-(S.front==='laview'?50:S.front==='nra'?40:20),top+11,10,1.2);
+}
+function drawBogie(b,bot,S){
+  ctx.fillStyle='#3a4049';rr(b-19,bot-2,38,7,2);ctx.fill();
+  const ang=pos/5,agt=S.front==='agt';
+  [-10,10].forEach(o=>{const wx=b+o,wy=ty-5;
+    ctx.fillStyle='#1c2027';ctx.beginPath();ctx.arc(wx,wy,agt?6:5.2,0,7);ctx.fill();
+    ctx.fillStyle=agt?'#c9ced6':'#7d8693';ctx.beginPath();ctx.arc(wx,wy,agt?2.6:1.6,0,7);ctx.fill();
+    ctx.strokeStyle='#8a93a0';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(wx,wy);ctx.lineTo(wx+Math.cos(ang)*4.4,wy+Math.sin(ang)*4.4);ctx.stroke();});
+}
+/* o：{cab:うんてんせきが みぎに あるか, num, lit, tail:うしろの ライト, mir:さゆう はんてん して かいて いるか, led:[しゅべつ, いろ, いきさき]} */
+function drawCar(x0,x1,top,bot,o,S){
+  const cab=o.cab,nose=cab?NOSE[S.front]:0,H=bot-top;
+  drawBogie(x0+30,bot,S);drawBogie(cab?x1-nose-24:x1-30,bot,S);
+  carPath(x0,x1,top,bot,cab,S);ctx.fillStyle=S.body;ctx.fill();
+  ctx.save();carPath(x0,x1,top,bot,cab,S);ctx.clip();
+  (S.stripes||[]).forEach(([a,b,c,pat])=>{if(typeof c==='object'){const g=ctx.createLinearGradient(x0,0,x1,0);c.forEach((cc,i)=>g.addColorStop(i/(c.length-1),cc));ctx.fillStyle=g;}else ctx.fillStyle=c;
+    if(pat==='checker'){/* いちまつもよう：まえの ほうほど こく */const h=(b-a)/2;for(let x=x0,j=0;x<x1;x+=h,j++)for(let r=0;r<2;r++){if((j+r)%2)continue;const f=(x-x0)/(x1-x0);if(hash(j*3+r)>0.25+f*0.7)continue;ctx.fillRect(x,top+a+r*h,h,h);}}
+    else ctx.fillRect(x0,top+a,x1-x0,b-a);});
+  if(cab&&S.face){ctx.fillStyle=S.face;ctx.fillRect(x1-(S.faceW||10),top,(S.faceW||10)+2,H);}
+  ctx.fillStyle=shade(top,bot);ctx.fillRect(x0,top-2,x1-x0,H+4);
+  ctx.fillStyle='rgba(255,255,255,.5)';ctx.fillRect(x0,top+2,x1-x0,1);
+  if(S.roof){ctx.fillStyle=S.roof;ctx.fillRect(x0,top,x1-x0,2.5);}
+  if(cab)cabWindow(x1,top,bot,S);
+  ctx.restore();
+  carPath(x0,x1,top,bot,cab,S);ctx.strokeStyle='rgba(70,80,95,.55)';ctx.lineWidth=0.8;ctx.stroke();
+  /* ドア */
+  const dx=doorXs(S,x0,x1,cab),dw=S.doors===1||S.doors===2?10:13,dTop=top+7,dBot=bot-3;
+  dx.forEach(d=>{
+    ctx.fillStyle=S.door||S.body;ctx.fillRect(d-dw/2,dTop,dw,dBot-dTop);
+    ctx.strokeStyle='rgba(60,70,85,.55)';ctx.lineWidth=0.8;ctx.strokeRect(d-dw/2,dTop,dw,dBot-dTop);
+    if(dw>11){ctx.beginPath();ctx.moveTo(d,dTop);ctx.lineTo(d,dBot);ctx.stroke();}
+    ctx.fillStyle=o.lit?'#fde9a6':'#2b3647';
+    if(dw>11){ctx.fillRect(d-5,top+11,3.6,10);ctx.fillRect(d+1.4,top+11,3.6,10);}else ctx.fillRect(d-2.5,top+11,5,10);
+    if(doorAnim>0){ctx.fillStyle='#3a4558';ctx.fillRect(d-dw/2*doorAnim,dTop,dw*doorAnim,dBot-dTop);ctx.fillStyle='#e9d9a8';ctx.fillRect(d-dw/2*doorAnim,dTop+2,dw*doorAnim,2);}
+  });
+  /* まど（ドアと ドアの あいだ） */
+  const edges=[x0+4].concat(...dx.map(d=>[d-dw/2-4,d+dw/2+4])).concat([cab?x1-nose-(S.front==='laview'?0:24):x1-4]);
+  const wc=o.lit?'#fde9a6':(S.win||'#2c3a4f');let ledDone=!o.led;
+  for(let i=0;i<edges.length;i+=2){
+    let a=edges[i],b=edges[i+1];if(b-a<8)continue;
+    if(!ledDone&&b-a>26){/* よこの ひょうじき（しゅべつと いきさき） */
+      const m=(a+b)/2,lw=Math.min(44,b-a-2);ctx.fillStyle='#111';rr(m-lw/2,top+3,lw,7.5,1.2);ctx.fill();
+      ctx.save();ctx.translate(m,0);if(o.mir)ctx.scale(-1,1);
+      ctx.textBaseline='middle';ctx.font='800 5.6px '+FONT;
+      if(lw<27){ctx.textAlign='center';ctx.fillStyle=ledCol(o.led[1]);ctx.fillText(o.led[0],0,top+6.9,lw-3);}
+      else{const tw=Math.min(lw*0.42,ctx.measureText(o.led[0]).width);ctx.textAlign='left';ctx.fillStyle=ledCol(o.led[1]);ctx.fillText(o.led[0],-lw/2+1.5,top+6.9,lw*0.42);
+        ctx.fillStyle='#ffb21e';ctx.fillText(o.led[2],-lw/2+tw+3,top+6.9,lw-tw-4.5);}
+      ctx.restore();ledDone=true;}
+    if(S.wins==='big'){/* おおきな まど（Laview） */
+      const n=Math.max(1,Math.round((b-a)/26)),w=(b-a)/n;
+      for(let j=0;j<n;j++){ctx.fillStyle=o.lit?'#fff1c4':(S.win||'#3b4656');rr(a+j*w+1,top+9,w-2,H-23,3);ctx.fill();
+        if(S.seat){ctx.fillStyle=S.seat;rr(a+j*w+w*0.25,top+H-24,w*0.5,9,2.5);ctx.fill();}}
+    }else if(S.wins==='express'){
+      const n=Math.max(1,Math.round((b-a)/15)),w=(b-a)/n;
+      for(let j=0;j<n;j++){ctx.fillStyle=wc;rr(a+j*w+1.5,top+12,w-3,12,1.5);ctx.fill();}
+    }else{
+      const n=b-a>44?2:1,w=(b-a)/n;
+      for(let j=0;j<n;j++){ctx.fillStyle=wc;rr(a+j*w+1,top+12,w-2,13,1.5);ctx.fill();}
+    }
+  }
+  /* ごうしゃ ばんごう */
+  ctx.save();ctx.translate(x0+12,0);if(o.mir)ctx.scale(-1,1);
+  ctx.fillStyle=dark(S.body)?'rgba(255,255,255,.85)':'#5b6676';ctx.font='800 5px '+FONT;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(o.num),0,bot-8);ctx.restore();
+  /* ライト・スカート */
+  if(cab){
+    ctx.fillStyle=S.skirt||'#4a515c';ctx.beginPath();ctx.moveTo(x1-(S.front==='laview'?26:16),bot-1);ctx.lineTo(x1-(S.front==='laview'?6:0),bot-1);ctx.lineTo(x1-(S.front==='laview'?10:3),bot+5);ctx.lineTo(x1-(S.front==='laview'?26:16),bot+5);ctx.closePath();ctx.fill();
+    const lx=x1-(S.front==='laview'?10:S.front==='nra'?3:2),ly=bot-(S.front==='laview'?9:12);
+    if(o.lit&&!o.tail){const g=ctx.createRadialGradient(lx,ly,1,lx,ly,40);g.addColorStop(0,'rgba(255,248,200,.85)');g.addColorStop(1,'rgba(255,248,200,0)');ctx.fillStyle=g;ctx.fillRect(lx-40,ly-40,80,80);}
+    ctx.fillStyle=o.tail?'#ff3b3b':'#fffbe6';ctx.beginPath();ctx.ellipse(lx,ly,1.6,3,0,0,7);ctx.fill();
+  }
+}
+/* くらい ひょうじきでも みえるように、しゅべつの いろを すこし あかるく */
+function ledCol(c){return dark(c)?mix(c,'#ffffff',0.35):c;}
+function drawPanto(px,top){
+  ctx.fillStyle='#c9d0d9';rr(px-20,top-4,40,4,2);ctx.fill();
+  ctx.strokeStyle='#4a5462';ctx.lineWidth=1.8;ctx.beginPath();
+  ctx.moveTo(px-10,top-5);ctx.lineTo(px+10,top-24);ctx.lineTo(px-2,ty-99);ctx.stroke();
+  ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(px-14,ty-99);ctx.lineTo(px+10,ty-99);ctx.stroke();
+  ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(px-14,ty-99);ctx.lineTo(px-18,ty-96);ctx.moveTo(px+10,ty-99);ctx.lineTo(px+14,ty-96);ctx.stroke();
+}
+function dark(hex){const n=parseInt(hex.slice(1),16),r=n>>16,g=(n>>8)&255,b=n&255;return (r*299+g*587+b*114)/1000<150;}
+function shade(top,bot){const g=ctx.createLinearGradient(0,top,0,bot);g.addColorStop(0,'rgba(255,255,255,.3)');g.addColorStop(0.45,'rgba(255,255,255,0)');g.addColorStop(1,'rgba(0,0,0,.14)');return g;}
+/* れっしゃ ぜんたい：x1 が せんとう。うしろへ S.cars りょう ならべる（がめんの そとに でたら やめる） */
+function drawConsist(S,xFront,top,bot,lit,ledInfo,minX){
+  const L=carLen(S),cars=[];let x1=xFront;
+  for(let n=1;n<=S.cars;n++){const x0=x1-L;cars.push([x0,x1,n]);if(x0<minX)break;x1=x0-4;}
+  for(let i=cars.length-1;i>=0;i--){const [x0,x1,n]=cars[i],last=n===S.cars;
+    if(i>0){ctx.fillStyle='#2b2f36';rr(x1-1,top+5,6,bot-top-7,2);ctx.fill();}
+    if(last&&n>1){ctx.save();ctx.translate(x0+x1,0);ctx.scale(-1,1);drawCar(x0,x1,top,bot,{cab:true,num:n,lit,tail:true,mir:true,led:ledInfo},S);ctx.restore();}
+    else drawCar(x0,x1,top,bot,{cab:n===1,num:n,lit,led:ledInfo},S);
+    if(!S.noPanto&&(S.panto||[2]).includes(n))drawPanto((x0+x1)/2+(n===1?-20:0),top);
+  }
+}
+function computeDoors(){const S=SER(),L=carLen(S),out=[];let x1=FRONT;
+  for(let n=1;n<=Math.min(4,S.cars);n++){const x0=x1-L;doorXs(S,x0,x1,n===1).forEach(d=>{const dd=(n===S.cars&&n>1)?x0+x1-d:d;if(Math.abs(dd)<295)out.push(dd);});x1=x0-4;}
+  DOORS=out.sort((a,b)=>b-a);}
+function drawTrain(t){
+  const cx=bw/2,dy=(!reduced&&v>1)?Math.sin(t*31)*0.6*(v/MAXV):0,S=SER();
+  const top=ty-60+dy,bot=ty-10+dy,lit=inTunnel(pos)||night>0.45;
+  const k=curSeg(),ty0=tyAt(k),d=dest(k);
+  ctx.fillStyle='rgba(20,25,35,.22)';ctx.fillRect(-10,ty+1,cx+FRONT+10,4);
+  drawConsist(S,cx+FRONT,top,bot,lit,[ty0.k,ty0.c,d[0]],-20);
+  if(hornT>0)bubble(cx+210,top-36,'ファーン！',Math.min(1,hornT*2),1);
+  if(crewT>0)bubble(Math.max(110,cx-170),top-36,crewText,Math.min(1,crewT*2),-1);
+}
+function bubble(x,y,text,a,side){
+  ctx.font='800 18px '+FONT;const w=Math.max(110,ctx.measureText(text).width+30);
+  ctx.globalAlpha=a;ctx.fillStyle='#ffffff';ctx.strokeStyle='#14213d';ctx.lineWidth=2.5;
+  rr(x-w/2,y-22,w,40,14);ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x+side*10,y+18);ctx.lineTo(x+side*30,y+34);ctx.lineTo(x+side*28,y+18);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#14213d';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,x,y-1);
+  ctx.globalAlpha=1;
+}
+function drawNearPlatform(camX,t){
+  const k0=kAt(camX)-1,k1=kAt(camX+bw)+1;
+  for(let k=k0;k<=k1;k++){
+    const c=X(k)-camX;if(c<-400||c>bw+400)continue;
+    ctx.fillStyle='#d5dbe3';ctx.fillRect(c-310,ty-12,620,8);
+    ctx.fillStyle='#facc15';ctx.fillRect(c-310,ty-10,620,3);
+    ctx.fillStyle='#98a3b4';ctx.fillRect(c-310,ty-4,620,22);
+    ctx.fillStyle='#ffffff';DOORS.forEach(d=>{ctx.fillRect(c+d-11,ty-7,4,1.6);ctx.fillRect(c+d+7,ty-7,4,1.6);});
+  }
+  /* ふみきり（てまえの けいほうき） */
+  for(let k=k0;k<=k1;k++)feat(k).cr.forEach(x=>{const c=x-camX-26;if(c<-40||c>bw+40)return;const near=Math.abs(x-pos)<1600||Math.abs(x-pos-FRONT)<1600,on=near&&!reduced?Math.floor(t*2.4)%2:-1;
+    ctx.fillStyle='#3a3f47';ctx.fillRect(c-1.5,ty-50,3,62);
+    [-5,5].forEach((o,i)=>{ctx.fillStyle='#22262c';ctx.beginPath();ctx.arc(c+o,ty-44,3.6,0,7);ctx.fill();ctx.fillStyle=(near&&(reduced||on!==i))?'#ff2a2a':'#5a1d1d';ctx.beginPath();ctx.arc(c+o,ty-44,2.5,0,7);ctx.fill();});});
+}
+
+/* ---------- がめん ---------- */
+let last=0,lastKmh=-1,lastLabel='',lastClock='';
+function syncUI(){
+  const sg=curSeg(),kmh=Math.round(v/segVmax(sg)*segKmh(sg));
+  if(kmh!==lastKmh){$('kmh').textContent=kmh;lastKmh=kmh;}
+  const ck=fmt(nowMin());if(ck!==lastClock){$('clock').textContent=ck;lastClock=ck;if(!$('tt').hidden)renderTT();}
+  const fk=kAt(pos+0.01);
+  const d=dest(fk),ty0=tyAt(sg);
+  const busy=state==='bell'&&paxBusy(),label=line.id+'|'+fk+'|'+sg+'|'+state+'|'+busy+'|'+trip.ser;
+  if(label!==lastLabel){
+    lastLabel=label;
+    const tb=$('typeBadge');tb.textContent=ty0.k;tb.style.setProperty('--tc',ty0.c);
+    $('lineName').textContent=trip.baseAt(sg).name;$('maxKmh').textContent='さいこう '+segKmh(sg);$('destName').textContent=d[0]+'ゆき';
+    $('fromName').textContent=st(fk)[0];$('toName').textContent=st(fk+1)[0];
+    const S0=STATES[state];goBtn.textContent=busy&&S0.busyLabel?S0.busyLabel:S0.label;
+    $('banner').hidden=!(S0.atSt||state==='estop'||state==='estopWait');
+    goBtn.classList.toggle('wait',S0.wait);$('eBtn').disabled=!S0.canE;
+  }
+  $('dot').style.left=(frac(pos,fk)*100)+'%';
+  goBtn.classList.toggle('held',holding());
+}
+function frame(now){
+  const t=now/1000,dt=Math.min(0.05,last?t-last:0.016);last=t;
+  update(dt);
+  ctx.setTransform(DPR*s,0,0,DPR*s,0,0);
+  const camX=pos-bw/2;
+  drawBackground(camX,t);drawWorld(camX,t);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.32*night)+')';ctx.fillRect(0,0,bw,bh);}drawTrain(t);drawNearPlatform(camX,t);drawPeople(camX);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.12*night)+')';ctx.fillRect(0,0,bw,bh);}drawMap(t);
+  syncUI();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- ちず（西武線の ろせんず。いまの ろせんを こく かく） ---------- */
+const mcv=$('mapcv'),mctx=mcv.getContext('2d');let mapOn=true,mapBase=null,mapSize=0,proj=null;
+function buildMap(){
+  const r=mcv.getBoundingClientRect();if(!r.width)return;
+  const d=Math.min(2,window.devicePixelRatio||1);mapSize=r.width;mcv.width=Math.round(r.width*d);mcv.height=Math.round(r.width*d);
+  let la0=99,la1=0,lo0=999,lo1=0;line.st.forEach(x=>{la0=Math.min(la0,x[5]);la1=Math.max(la1,x[5]);lo0=Math.min(lo0,x[6]);lo1=Math.max(lo1,x[6]);});
+  const k=Math.cos(35.8*Math.PI/180),pad=14,w=Math.max(0.1,(lo1-lo0)*k),h=Math.max(0.1,la1-la0),sc=(mapSize-pad*2)/Math.max(w,h)*0.86;
+  const cxm=(lo0+lo1)/2,cym=(la0+la1)/2;lo0=cxm-mapSize/2/sc/k;la1=cym+mapSize/2/sc;
+  proj=n=>{const p=POS[n];return p?[(p[1]-lo0)*k*sc,(la1-p[0])*sc]:null;};
+  mapBase=document.createElement('canvas');mapBase.width=mcv.width;mapBase.height=mcv.height;
+  const g=mapBase.getContext('2d');g.setTransform(d,0,0,d,0,0);
+  g.fillStyle='#f4efd9';g.fillRect(0,0,mapSize,mapSize);
+  const path=st=>{g.beginPath();st.forEach((s,i)=>{const q=proj(s[0]);if(q){i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);}});};
+  g.lineCap='round';g.lineJoin='round';
+  Object.values(BASE).forEach(l=>{path(l.st);g.strokeStyle='#b7c3d3';g.lineWidth=2;g.stroke();});
+  path(line.st);g.strokeStyle=line.c;g.lineWidth=4;g.stroke();
+  line.st.forEach(s=>{const q=proj(s[0]);if(!q)return;g.fillStyle='#fff';g.strokeStyle=line.c;g.lineWidth=1.5;g.beginPath();g.arc(q[0],q[1],2.4,0,7);g.fill();g.stroke();});
+  g.fillStyle='#14213d';g.font='800 10px '+FONT;g.textBaseline='middle';
+  [line.st[0],line.st[line.st.length-1]].forEach(s=>{const q=proj(s[0]);if(!q)return;const right=q[0]<mapSize*0.6;g.textAlign=right?'left':'right';g.fillText(s[0],q[0]+(right?6:-6),q[1]);});
+}
+function drawMap(t){
+  if(!mapOn)return;
+  if(!mapBase||Math.abs(mcv.getBoundingClientRect().width-mapSize)>1)buildMap();
+  if(!mapBase)return;
+  const d=mcv.width/mapSize;mctx.setTransform(1,0,0,1,0,0);mctx.drawImage(mapBase,0,0);mctx.setTransform(d,0,0,d,0,0);
+  const run=moving(),k=run?curK():kNear(pos),f=run?frac(pos,k):0;
+  const a=proj(st(k)[0]),b=proj(st(k+1)[0]);if(!a||!b)return;
+  const x=a[0]+(b[0]-a[0])*f,y=a[1]+(b[1]-a[1])*f,pr=reduced?0:(Math.sin(t*4)+1)*2;
+  mctx.fillStyle='rgba(230,40,60,.25)';mctx.beginPath();mctx.arc(x,y,7+pr,0,7);mctx.fill();
+  mctx.fillStyle='#e6283c';mctx.strokeStyle='#fff';mctx.lineWidth=2;mctx.beginPath();mctx.arc(x,y,5,0,7);mctx.fill();mctx.stroke();
+}
+$('mapBtn').addEventListener('click',()=>{mapOn=!mapOn;applyMap();save();});
+/* スマホでは ちいさい ちずを おすと おおきく、もう いちど おすと ちいさく */
+$('map').addEventListener('click',()=>{if(!matchMedia('(max-width:640px)').matches)return;$('map').classList.toggle('big');mapBase=null;});
+function applyMap(){$('map').hidden=!mapOn;$('mapBtn').setAttribute('aria-pressed',mapOn);if(mapOn)mapBase=null;}
+
+/* ---------- パネル（うえに かさなる がめん） ---------- */
+const PANELS=['picker','tripPanel','tt','painter','annPanel','crewPanel','ePanel','title'];
+function closePanel(id){const el=$(id);if(el.hidden)return;el.hidden=true;el.querySelectorAll('.playing').forEach(x=>x.classList.remove('playing'));}
+function openPanel(id,focusSel){PANELS.forEach(p=>{if(p!==id)closePanel(p);});const el=$(id);el.hidden=false;el.scrollTop=0;
+  const f=focusSel&&el.querySelector(focusSel);if(f)f.focus({preventScroll:true});}
+function anyPanel(){return PANELS.some(p=>!$(p).hidden);}
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closePanel(b.dataset.close)));
+
+/* ---------- ろせん えらび ---------- */
+function setTrip(t,speak){
+  delay=0;delayLog={};depLog={};segEstop=false;justRecovered=false;featCache.clear();
+  trip=t;line=t.line;curS=null;computeDoors();applyColor();
+  pos=0;v=0;state='stopped';stopT=0;doorAnim=1;announced=false;holders.clear();
+  const n=st(0),ty0=trip.type;
+  showBanner(n[0]+' はつ',fmt(depMin(0)),'しゅっぱつ！を おしてね');
+  led(trip.baseAt(0).name+'に ようこそ  '+ty0.k+' '+dest(0)[0]+'ゆき  '+n[0]+'（'+n[1]+'） '+fmt(depMin(0))+'はつ  しゃりょうは '+SER().name);
+  document.querySelectorAll('.lineBtn').forEach(b=>b.setAttribute('aria-pressed',b.dataset.id===line.id));
+  lastLabel='';mapBase=null;people=[];spawnWaiting(0);
+  if(speak){pinpon();announce('せいぶ'+trip.baseAt(0).kana+'、'+typeJa(ty0)+'、'+dest(0)[1]+'ゆき です。',null,500,true);}
+}
+const grid=$('grid');let lastGroup='';
+ROUTES.forEach(l=>{
+  if(l.group!==lastGroup){lastGroup=l.group;const h=document.createElement('p');h.className='gridhead';h.textContent=l.group;grid.appendChild(h);}
+  const b=document.createElement('button');b.type='button';b.className='lineBtn'+(l.name.length>8?' thru':'');b.dataset.id=l.id;
+  b.style.setProperty('--lc',l.c);b.setAttribute('aria-pressed','false');
+  const nm=document.createElement('b');nm.textContent=l.name;
+  const sm=document.createElement('small');sm.textContent=l.st[0][0]+' ― '+l.st[l.st.length-1][0]+'（'+l.st.length+'えき・'+typesOf(l).length+'しゅべつ）';
+  b.append(nm,sm);
+  b.addEventListener('click',()=>{ensureAudio();openTrip(l);});
+  grid.appendChild(b);
+});
+/* ---------- のる でんしゃを きめる がめん ---------- */
+let draft=null,side='from';
+function draftTrip(){const t=new Trip(draft.line,draft.a,draft.b,draft.start,draft.ti,draft.ser);draft.start=t.start;return t;}
+function typeNote(R,ty){const [lo,hi]=typeRange(R,ty);return (ty.note?ty.note+'・':'')+R.st[lo][0]+'〜'+R.st[hi][0];}
+function drawTrip(){
+  const L=draft.line,last=L.st.length-1,T=typesOf(L);
+  /* えらんだ しゅべつが この えきで つかえなければ、つかえる しゅべつに かえる */
+  if(!T[draft.ti]||!typeOK(L,T[draft.ti],draft.a,draft.b)){const j=T.findIndex(t=>typeOK(L,t,draft.a,draft.b));if(j>=0)draft.ti=j;}
+  const dt=draftTrip(),ty0=T[draft.ti],ok=dt.ok;
+  if(ok)draft.ser=dt.ser;
+  $('tripPanel').style.setProperty('--lc',L.c);$('tripTitle').textContent=L.name;
+  const ef=$('endFrom'),et=$('endTo');
+  ef.querySelector('b').textContent=L.st[draft.a][0];ef.querySelector('span').textContent=L.st[draft.a][1];
+  et.querySelector('b').textContent=L.st[draft.b][0];et.querySelector('span').textContent=L.st[draft.b][1];
+  /* しゅべつの ボタン */
+  const tw=$('types');tw.textContent='';
+  T.forEach((t,i)=>{const b=document.createElement('button');b.type='button';b.style.setProperty('--tc',t.c);
+    const can=typeOK(L,t,draft.a,draft.b);b.disabled=!can;b.setAttribute('aria-pressed',ok&&i===draft.ti);
+    const n=document.createElement('b');n.textContent=t.k;const sm=document.createElement('small');sm.textContent=typeNote(L,t);b.append(n,sm);
+    b.title=can?'':'この えきには とまらないか、この むきには はしらないよ';
+    b.addEventListener('click',()=>{draft.ti=i;drawTrip();});tw.appendChild(b);});
+  /* しゃりょうの ボタン */
+  const sw=$('sers');sw.textContent='';
+  (ok?ty0.ser:[]).forEach(id=>{const S=serOf(id),b=document.createElement('button');b.type='button';
+    const i=document.createElement('i');i.style.setProperty('--sc',S.ui[0]);i.style.setProperty('--sc2',S.ui[1]);
+    b.append(i,document.createTextNode(S.name));b.setAttribute('aria-pressed',id===draft.ser);
+    b.addEventListener('click',()=>{draft.ser=id;drawTrip();});sw.appendChild(b);});
+  ef.setAttribute('aria-pressed',side==='from');et.setAttribute('aria-pressed',side==='to');
+  $('pickHint').textContent=side==='from'?'えきを おして「のる えき」を えらんでね':'えきを おして「おりる えき」を えらんでね';
+  const ul=$('stList'),lo=Math.min(draft.a,draft.b),hi=Math.max(draft.a,draft.b),keepScroll=ul.scrollTop;ul.textContent='';
+  /* のる えきが うえに くるように、すすむ むきに あわせて ならべる */
+  const rev=draft.a>draft.b,order=L.st.map((n,i)=>i);if(rev)order.reverse();
+  const flip=ul.dataset.rev!==String(rev);ul.dataset.rev=String(rev);
+  order.forEach(i=>{const n=L.st[i];const li=document.createElement('li'),b=document.createElement('button');b.type='button';
+    const pass=ok&&i>lo&&i<hi&&!stopsAt(L,ty0,i);
+    b.className='strow'+(i>=lo&&i<=hi?' in':'')+(i===draft.a||i===draft.b?' end':'')+(pass?' pass':'');
+    const d=document.createElement('span');d.className='dot';const nm=document.createElement('span');nm.className='nm';
+    const k=document.createElement('b');if(n[3]){const nb=document.createElement('span');nb.className='num';nb.style.setProperty('--nc',numColor(n[3]));nb.textContent=n[3];k.append(nb);}k.append(n[0]);
+    const sm=document.createElement('small');sm.textContent=n[1];nm.append(k,sm);b.append(d,nm);
+    if(i===draft.a||i===draft.b){const t=document.createElement('span');t.className='tag';t.textContent=i===draft.a?'のる':'おりる';b.appendChild(t);}
+    else if(pass){const t=document.createElement('span');t.className='ps';t.textContent='とおりすぎる';b.appendChild(t);}
+    b.addEventListener('click',()=>{
+      if(side==='from'){draft.a=i;if(draft.b===i)draft.b=i===last?0:last;side='to';}
+      else{draft.b=i;if(draft.a===i)draft.a=i===0?last:0;}
+      drawTrip();});
+    li.appendChild(b);ul.appendChild(li);});
+  ul.scrollTop=flip?0:keepScroll;
+  $('noGo').hidden=ok;$('tripGo').disabled=!ok;
+  if(!ok){$('noGo').textContent='この 2つの えきを のりかえ なしで むすぶ でんしゃは ないよ。べつの えきを えらんでね';}
+  const r={f:dt.firstStart(),l:dt.lastStart(),d:dt.depMin(0),ar:dt.arrMin(dt.len),n:dt.stopCount()};
+  $('ttTime').textContent=fmt(draft.start);
+  $('ttRange').textContent='この しゅべつの しはつ '+fmt(r.f)+' ／ しゅうでん '+fmt(r.l)+(ty0.t?'（'+ty0.note+'）':'');
+  $('sumDep').textContent=fmt(r.d);$('sumFrom').textContent=L.st[draft.a][0]+' はつ';
+  $('sumArr').textContent=fmt(r.ar);$('sumTo').textContent=dt.dest(0)[0]+' ゆき';
+  const mins=Math.round(r.ar-r.d);$('sumMeta').textContent=ty0.k+' ・ やく '+(mins>=60?Math.floor(mins/60)+'じかん':'')+(mins%60)+'ふん ・ '+r.n+'えきに とまります';
+  document.querySelectorAll('.tstep').forEach(b=>{const d=+b.dataset.d;b.disabled=d<0?draft.start<=r.f:draft.start>=r.l;});
+}
+$('endFrom').addEventListener('click',()=>{side='from';drawTrip();});
+$('endTo').addEventListener('click',()=>{side='to';drawTrip();});
+$('swapBtn').addEventListener('click',()=>{[draft.a,draft.b]=[draft.b,draft.a];drawTrip();});
+function defTrip(l){const d=DEF[l.id];if(!d)return{a:0,b:l.st.length-1,ti:0};return{a:stIndex(l,d[0]),b:stIndex(l,d[1]),ti:Math.max(0,typesOf(l).findIndex(t=>t.k===d[2]))};}
+function openTrip(l){
+  const same=l===line,df=defTrip(l);draft={line:l,a:same?trip.a:df.a,b:same?trip.b:df.b,start:trip.start,ti:same?trip.ti:df.ti,ser:same?trip.ser:null};
+  side='from';openPanel('tripPanel');$('stList').scrollTop=0;drawTrip();
+}
+function setStart(m){draft.start=m;drawTrip();}
+document.querySelectorAll('.tstep').forEach(b=>{let rep=null,first=null;
+  const stop=()=>{clearTimeout(first);clearInterval(rep);first=rep=null;};
+  b.addEventListener('pointerdown',e=>{if(b.disabled)return;e.preventDefault();const d=+b.dataset.d;setStart(draft.start+d);
+    first=setTimeout(()=>{rep=setInterval(()=>{if(b.disabled){stop();return;}setStart(draft.start+d);},140);},450);});
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,stop));
+  b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setStart(draft.start+(+b.dataset.d));}});});
+document.querySelectorAll('.ttquick button').forEach(b=>b.addEventListener('click',()=>{const q=b.dataset.q;
+  if(q==='first')setStart(0);else if(q==='last')setStart(9999);else{const n=new Date();setStart(Math.round((n.getHours()*60+n.getMinutes())/5)*5);}}));
+$('tripBack').addEventListener('click',()=>openPanel('picker','.lineBtn[aria-pressed="true"]'));
+$('tripGo').addEventListener('click',()=>{const t=draftTrip();if(!t.ok)return;ensureAudio();setTrip(t,true);lastClock='';closePanel('tripPanel');save();goBtn.focus();});
+function renderTT(){
+  $('ttSum').textContent=trip.type.k+'　'+fmt(depMin(0))+' '+st(0)[0]+'はつ → '+fmt(arrMin(tripLen()))+' '+st(tripLen())[0]+'ゆき'+(delay>0?'（いま やく'+delay+'ふん おくれ）':'');
+  const cur=atStation()?kNear(pos):target-1;
+  const L=Math.floor(cur/legLen()),k0=L*legLen(),hi=atStation()?cur:target;
+  const tb=$('ttBody');tb.textContent='';
+  for(let j=0;j<=legLen();j++){const k=k0+j,n=st(k),tr=document.createElement('tr');if(k===hi)tr.className='now';
+    const a=document.createElement('td'),b=document.createElement('td'),c=document.createElement('td');
+    a.textContent=n[0];const sm=document.createElement('small');sm.textContent=n[1];a.appendChild(sm);
+    b.className='t';c.className='t';if(!isStop(k)){b.textContent='レ';c.textContent='レ';tr.className=(tr.className+' pass').trim();}else{
+      const dA=(k in delayLog)?delayLog[k]:delay,dD=(k in depLog)?depLog[k]:delay;
+      const put=(cell,t,dl)=>{cell.textContent=fmt(t);if(dl>0){const sm=document.createElement('small');sm.className='late';sm.textContent=dl+'ふん おくれ';cell.appendChild(sm);}};
+      if(j>0)put(b,arrMin(k),dA);if(j<legLen())put(c,depMin(k),dD);}
+    tr.append(a,b,c);tb.appendChild(tr);}
+}
+$('ttBtn').addEventListener('click',()=>{renderTT();openPanel('tt');});
+$('pick').addEventListener('click',()=>{ensureAudio();openPanel('picker','.lineBtn[aria-pressed="true"]');});
+
+/* ---------- そうさ ---------- */
+function bindHold(el,prefix){
+  el.addEventListener('pointerdown',e=>{e.preventDefault();try{el.setPointerCapture(e.pointerId);}catch(_){}press(prefix+e.pointerId);});
+  const up=e=>release(prefix+e.pointerId);
+  el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('lostpointercapture',up);
+  el.addEventListener('contextmenu',e=>e.preventDefault());
+}
+bindHold(goBtn,'g');bindHold(cv,'c');
+hornBtn.addEventListener('click',horn);
+/* ---------- よく ある しゃない アナウンス ---------- */
+function nextInfo(){const k=moving()?target:nextStop(kNear(pos));return {n:st(k),t:arrMin(k)+delay};}
+function hereK(){return moving()?target-1:kNear(pos);}
+/* これから とまる えき（しゅうてんまで） */
+function stopsAhead(){const k=hereK(),L=Math.floor(k/legLen()),end=(L+1)*legLen(),out=[];for(let j=k+1;j<=end;j++)if(isStop(j))out.push(st(j));return out;}
+const ANN=[
+ {t:'つぎの えき',d:'つぎに とまる えきと じこく',f:()=>{const x=nextInfo();return ['つぎは、'+x.n[1]+'です。'+x.n[1]+'には、'+fmtJa(x.t)+'に つきます。','The next station is '+enSt(x.n)+'.','つぎは '+x.n[0]+' '+fmt(x.t)+'着  Next '+enSt(x.n)];}},
+ {t:'ゆきさき',d:'しゅべつと いきさき',f:()=>{const k=hereK(),d=dest(k),ty=tyAt(k),af=allInfo(k);return ['この でんしゃは、'+typeJa(ty)+'、'+d[1]+'ゆき です。'+(af?af[1]+'から さきは、かくえきに とまります。':''),'This is '+typeEn(ty,k)+' bound for '+d[2]+'.','この でんしゃは '+ty.k+' '+d[0]+'ゆき です'+(af?'  '+af[0]+'から さきは 各駅に とまります':'')];}},
+ {t:'とまる えき',d:'この さき とまる えきを ぜんぶ',f:()=>{const s=stopsAhead(),k=hereK(),ty=tyAt(k);if(!s.length)return['この でんしゃは、ここが しゅうてん です。',null,'この でんしゃは ここが しゅうてん です'];
+   return ['この でんしゃの とまる えきは、'+s.map(x=>x[1]).join('、')+'です。',null,ty.k+'の とまる えき  '+s.map(x=>x[0]).join(' ・ ')];}},
+ {t:'ゆうせんせき',d:'せきを ゆずって ね',f:()=>['ゆうせんせきを ひつようと されている おきゃくさまが いらっしゃいましたら、おせきを おゆずり ください。','Please offer your seat to those who need it.','ゆうせんせきを ひつようと されている かたに おせきを おゆずり ください']},
+ {t:'けいたいでんわ',d:'マナーモードに して ね',f:()=>['しゃないでは、けいたいでんわを マナーモードに せっていの うえ、つうわは ごえんりょ ください。','Please set your mobile phone to silent mode and refrain from talking on the phone.','けいたいでんわは マナーモードに  つうわは ごえんりょ ください']},
+ {t:'かけこみ じょうしゃ',d:'あぶないから やめてね',f:()=>['かけこみ じょうしゃは、たいへん きけん ですので おやめ ください。','Please do not rush onto the train.','かけこみ じょうしゃは きけん です  おやめ ください']},
+ {t:'じこくどおり',d:'よていどおりか おくれて いるか',f:()=>delay>0?['この でんしゃは、ただいま、やく'+delay+'ふん おくれて おります。ごめいわくを おかけして もうしわけ ございません。','This train is running about '+delay+' minutes behind schedule.','ただいま やく '+delay+'ふん おくれて います']:['この でんしゃは、ただいま、ていじに はしって おります。','This train is running on schedule.','ただいま ていじに はしって います']},
+ {t:'おわすれもの',d:'おりる まえの ちゅうい',f:()=>['おおりの さいは、おわすれものの ないよう、ごちゅうい ください。','Please make sure you have all your belongings with you when you leave the train.','おわすれものの ないよう ごちゅうい ください']},
+ {t:'ありがとう',d:'ごりようの おれい',f:()=>['きょうも せいぶせんを ごりよう いただきまして、ありがとう ございます。','Thank you for riding the Seibu Line.','きょうも 西武線を ごりよう いただきまして ありがとうございます']}
+];
+const annGrid=$('annGrid');
+ANN.forEach(a=>{const b=document.createElement('button');b.type='button';b.className='ann';
+  const t=document.createElement('span');t.textContent=a.t;const d=document.createElement('small');d.textContent=a.d;b.append(t,d);
+  b.addEventListener('click',()=>{ensureAudio();const [ja,en,ledText]=a.f();carChime();announce(ja,en,800,true);led(ledText);
+    annGrid.querySelectorAll('.ann').forEach(x=>x.classList.remove('playing'));b.classList.add('playing');});
+  annGrid.appendChild(b);});
+$('annBtn').addEventListener('click',()=>{ensureAudio();openPanel('annPanel','.ann');});
+const CREW=[
+ {t:'しゅっぱつ しんこう！',d:'でんしゃが うごきだす とき',say:'しゅっぱつ、しんこう！'},
+ {t:'ドア しまります！',d:'ドアを しめる まえ',say:'ドアが しまります！ ごちゅうい ください！'},
+ {t:'ホーム よし！',d:'ホームの あんぜんを たしかめる',say:'ホーム、よし！'},
+ {t:'ピーッ（ふえ）',d:'しゃしょうさんの ふえ',whistle:true},
+ {t:'しんごう よし！',d:'しんごうを たしかめる',say:'しんごう、よし！'},
+ {t:'つうか よし！',d:'とおりすぎる えきを たしかめる',say:'つうか、よし！'},
+ {t:'ていしゃ よし！',d:'ちゃんと とまったか たしかめる',say:'ていしゃいち、よし！'},
+ {t:'おつかれさまでした',d:'しゅうてんに ついた とき',say:'おつかれさまでした！'}
+];
+const crewGrid=$('crewGrid');
+CREW.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='ann crew';
+  const t=document.createElement('span');t.textContent=c.t;const d=document.createElement('small');d.textContent=c.d;b.append(t,d);
+  b.addEventListener('click',()=>{ensureAudio();if(c.whistle){whistle();crewText='ピーッ！';}else{crewSay(c.say);crewText=c.t;}crewT=2.2;
+    crewGrid.querySelectorAll('.ann').forEach(x=>x.classList.remove('playing'));b.classList.add('playing');});
+  crewGrid.appendChild(b);});
+$('crewBtn').addEventListener('click',()=>{ensureAudio();openPanel('crewPanel','.ann');});
+const eGrid=$('eGrid');
+EREASONS.forEach(r=>{const b=document.createElement('button');b.type='button';b.className='ann em';
+  const t=document.createElement('span');t.textContent=r.t;const d=document.createElement('small');d.textContent=r.d;
+  const ic=document.createElementNS('http://www.w3.org/2000/svg','svg');ic.setAttribute('aria-hidden','true');ic.setAttribute('class','eic');
+  const u=document.createElementNS('http://www.w3.org/2000/svg','use');u.setAttribute('href','#e-'+r.ic);ic.appendChild(u);
+  const tx=document.createElement('span');tx.className='etx';tx.append(t,d);b.append(ic,tx);
+  b.addEventListener('click',()=>{ensureAudio();closePanel('ePanel');emergency(r);});eGrid.appendChild(b);});
+$('eBtn').addEventListener('click',()=>{ensureAudio();if(!canEmergency())return;openPanel('ePanel','.ann');});
+autoBtn.addEventListener('click',()=>{ensureAudio();auto=!auto;autoBtn.setAttribute('aria-pressed',auto);if(auto&&state==='stopped')stopT=Math.max(stopT,5);save();});
+sndBtn.addEventListener('click',()=>{ensureAudio();soundOn=!soundOn;applySound();save();});
+/* ---------- ぜんがめん ---------- */
+const fsBtn=$('fsBtn'),root=document.documentElement;
+const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+const fsOK=!!(document.fullscreenEnabled||document.webkitFullscreenEnabled)&&!!(root.requestFullscreen||root.webkitRequestFullscreen);
+if(fsOK)fsBtn.hidden=false;
+/* iPad の Safari は ぜんがめんの とき 左上に かいじょボタンを かさねて だすので、そのあいだだけ よける */
+const isIPad=/iPad/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+function fsSync(){const on=!!fsEl();document.documentElement.classList.toggle('fs-ipad',on&&isIPad);fsBtn.querySelector('use').setAttribute('href',on?'#i-exit':'#i-full');fsBtn.querySelector('span').textContent=on?'もどす':'ぜんがめん';fsBtn.setAttribute('aria-label',on?'ぜんがめん おわり':'ぜんがめん');fsBtn.setAttribute('aria-pressed',on);setTimeout(resize,150);}
+fsBtn.addEventListener('click',()=>{ensureAudio();try{
+  if(fsEl()){(document.exitFullscreen||document.webkitExitFullscreen).call(document);}
+  else{const r=(root.requestFullscreen||root.webkitRequestFullscreen).call(root);if(r&&r.catch)r.catch(()=>{fsBtn.hidden=true;});}
+}catch(e){fsBtn.hidden=true;}});
+document.addEventListener('fullscreenchange',fsSync);document.addEventListener('webkitfullscreenchange',fsSync);
+/* ---------- しゃりょう えらび（いまの しゅべつで はしる しゃりょうだけ） ---------- */
+const pv=$('pv'),pvctx=pv.getContext('2d');
+function withCtx(c,fn){const main=ctx,mty=ty,md=doorAnim,mp=pos;ctx=c;doorAnim=0;ty=74;try{fn();}finally{ctx=main;ty=mty;doorAnim=md;pos=mp;}}
+function drawPreview(){
+  withCtx(pvctx,()=>{const S=SER();
+    pvctx.setTransform(2,0,0,2,0,0);pvctx.fillStyle='#bfe6ff';pvctx.fillRect(0,0,420,90);
+    pvctx.fillStyle='#9c9488';pvctx.fillRect(0,ty+2,420,14);pvctx.fillStyle='#7b8494';pvctx.fillRect(0,ty-1,420,3);
+    pvctx.strokeStyle='#4b5563';pvctx.lineWidth=1;pvctx.beginPath();pvctx.moveTo(0,ty-99);pvctx.lineTo(420,ty-99);pvctx.stroke();
+    const t0=trip.type;drawConsist(S,404,ty-60,ty-10,false,[t0.k,t0.c,trip.dest(0)[0]],-300);});
+}
+function renderSeries(){
+  const ids=trip.type.ser||[],S=SER(),list=$('serList');list.textContent='';
+  $('serInfo').textContent='';const b0=document.createElement('b');b0.textContent=S.name;const p=document.createElement('div');p.textContent=S.desc||'';$('serInfo').append(b0,p);
+  ids.forEach(id=>{const X0=serOf(id),b=document.createElement('button');b.type='button';
+    const i=document.createElement('i');i.style.setProperty('--sc',X0.ui[0]);i.style.setProperty('--sc2',X0.ui[1]);
+    const sm=document.createElement('small');sm.textContent=(trip.type.cars||X0.cars)+'りょう・ドア '+X0.doors+'つ';
+    b.append(i,document.createTextNode(X0.name),sm);b.setAttribute('aria-pressed',id===trip.ser);
+    b.addEventListener('click',()=>{trip.ser=id;curS=null;computeDoors();applyColor();renderSeries();lastLabel='';save();});list.appendChild(b);});
+}
+$('paintBtn').addEventListener('click',()=>{openPanel('painter');renderSeries();applyColor();});
+function applySound(){sndBtn.setAttribute('aria-pressed',soundOn);sndBtn.querySelector('use').setAttribute('href',soundOn?'#i-sound':'#i-mute');sndBtn.querySelector('span').textContent=soundOn?'おと あり':'おと なし';sndBtn.setAttribute('aria-label',soundOn?'おと あり':'おと なし');
+  if(master)master.gain.setTargetAtTime(soundOn?0.8:0,AC.currentTime,0.05);if(!soundOn)stopSpeech();}
+function applyColor(){const rt=$('route'),S=SER();rt.style.setProperty('--up',S.ui[1]);rt.style.setProperty('--low',S.ui[0]);rt.style.setProperty('--line',S.ui[1]);drawPreview();if(!titleEl.hidden)drawTitleTrain();}
+/* ---------- タイトル がめん ---------- */
+const titleEl=$('title'),tctx=$('tcv').getContext('2d'),TLW=1700;
+const calm=window.matchMedia?matchMedia('(prefers-reduced-motion: reduce)'):{matches:false};
+let tWheel=0,tLast=0;
+function drawTitleTrain(){
+  withCtx(tctx,()=>{pos=tWheel;tctx.setTransform(2,0,0,2,0,0);tctx.clearRect(0,0,TLW,90);
+    const t0=trip.type;drawConsist(SER(),TLW-202,ty-60,ty-10,false,[t0.k,t0.c,trip.dest(0)[0]],-200);});
+}
+function titleFrame(now){
+  if(titleEl.hidden){tLast=0;return;}
+  if(tLast)tWheel+=Math.min(0.05,(now-tLast)/1000)*120;
+  tLast=now;drawTitleTrain();requestAnimationFrame(titleFrame);
+}
+function showTitle(){openPanel('title','#tStart');tLast=0;drawTitleTrain();if(!calm.matches)requestAnimationFrame(titleFrame);}
+$('tStart').addEventListener('click',()=>{ensureAudio();carChime();closePanel('title');goBtn.focus({preventScroll:true});});
+$('tPick').addEventListener('click',()=>{ensureAudio();openPanel('picker','.lineBtn[aria-pressed="true"]');});
+$('homeBtn').addEventListener('click',showTitle);
+window.addEventListener('keydown',e=>{
+  if(anyPanel()){if(e.key==='Escape')PANELS.forEach(closePanel);return;}
+  const b=e.target.closest&&e.target.closest('button');
+  if(b&&b!==goBtn)return;
+  if(e.key===' '||e.key==='Enter'||e.key==='ArrowRight'){e.preventDefault();if(!e.repeat)press('k');}
+  else if(e.key==='h'||e.key==='H'){horn();}
+});
+window.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter'||e.key==='ArrowRight')release('k');});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)holders.clear();});
+window.addEventListener('resize',resize);
+
+function start(data){
+  const d=Object.assign({},load(),data||{});
+  auto=!!d.auto;let startMin;{const hs=data&&data.startMin;if(Number.isInteger(hs)&&hs>=300&&hs<=1440)startMin=hs;else{const now=new Date();startMin=Math.round((now.getHours()*60+now.getMinutes())/5)*5;}}if(typeof d.mapOn==='boolean')mapOn=d.mapOn;applyMap();if(typeof d.soundOn==='boolean')soundOn=d.soundOn;
+  const R=ROUTES.find(l=>l.id===d.lineId)||ROUTES[0],df=defTrip(R);let t=new Trip(R,d.lineId?d.tripA:df.a,d.lineId?d.tripB:df.b,startMin,d.lineId?d.ti:df.ti,d.ser);if(!t.ok)t=new Trip(R,df.a,df.b,startMin,df.ti,null);
+  setTrip(t,false);
+  autoBtn.setAttribute('aria-pressed',auto);applySound();applyColor();
+  const hot=window.claude&&window.claude.hot;
+  if(hot&&hot.snapshot){try{hot.snapshot(()=>({auto,soundOn,mapOn,startMin:trip.start,tripA:trip.a,tripB:trip.b,ti:trip.ti,ser:trip.ser,lineId:line.id}));}catch(e){}}
+  resize();
+  if(document.fonts&&document.fonts.load){document.fonts.load('800 28px "M PLUS Rounded 1c"').catch(()=>{});}
+  requestAnimationFrame(frame);
+  showTitle();
+}
+const hot=window.claude&&window.claude.hot;
+if(hot&&hot.ready)hot.ready(start);else start(hot&&hot.data?hot.data:{});
+})();
+</script>
