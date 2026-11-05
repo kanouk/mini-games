@@ -1,0 +1,59 @@
+<!doctype html><meta charset="utf-8"><title>西武線：乗降アニメーション確認</title>
+<style>body{font:16px system-ui;background:#edf3f7;color:#14213d;margin:16px}button{padding:14px;font:inherit}pre{white-space:pre-wrap}iframe{display:block;border:0;margin-top:16px;max-width:none}</style>
+<button id="run">確認する</button><pre id="result">待機中</pre><div id="frames"></div>
+<script>
+const result=document.querySelector('#result'),frames=document.querySelector('#frames'),params=new URLSearchParams(location.search);
+let count=0,frame,key;
+function check(ok,message){if(!ok)throw Error(message);count++;result.textContent+='\n✓ '+message;}
+async function mount(width,height){
+  frame?.remove();key='seibu-boarding-test-'+Date.now();
+  localStorage.setItem(key,JSON.stringify({auto:false,soundOn:false,mapOn:true,lineId:'ikebukuro',tripA:3,tripB:4,ti:0,ser:'40000'}));
+  let source=await(await fetch('../seibu.html')).text();
+  source=source.replaceAll("'seibu'",JSON.stringify(key)).replace('<script>','<script>Math.random=()=>.6;window.requestAnimationFrame=()=>0;');
+  const marker='if(hot&&hot.ready)hot.ready(start);else start(hot&&hot.data?hot.data:{});';
+  if(!source.includes(marker))throw Error('QA insertion point not found');
+  source=source.replace(marker,marker+`window.qa={
+    get state(){return {state,pos,target,doorAnim,people,busy:paxBusy(),elevation:elevationAt(trip,pos)};},
+    force(){people.forEach(p=>p.willTrip=false);const p=pickStumbler(people,()=>0);if(!p)throw Error('No candidate');p.willTrip=true;return p;},
+    step(seconds){for(let i=0;i<Math.ceil(seconds/.05);i++){this.tick=(this.tick||1000)+50;frame(this.tick);}},
+  };`);
+  frame=document.createElement('iframe');frame.title='隔離した確認用ゲーム';frame.style.width=width+'px';frame.style.height=height+'px';frames.replaceChildren(frame);
+  const loaded=new Promise(resolve=>frame.onload=resolve);frame.srcdoc=source;await loaded;await frame.contentDocument.fonts.ready;
+  const w=frame.contentWindow,d=frame.contentDocument,errors=[];w.addEventListener('error',e=>errors.push(e.message));
+  if(!w.qa)throw Error('Game did not start');d.querySelector('#tStart').click();
+  return {w,d,qa:w.qa,errors};
+}
+function pointer(w,d,type){d.querySelector('#go').dispatchEvent(new w.PointerEvent(type,{pointerId:1,pointerType:'touch',isPrimary:true,bubbles:true,button:0,buttons:type==='pointerup'?0:1}));}
+document.querySelector('#run').onclick=async()=>{
+  document.querySelector('#run').disabled=true;count=0;result.textContent='確認中';
+  const realSave=localStorage.getItem('seibu');
+  try{
+    const sizes=params.has('preview')?[[1024,768]]:[[400,844],[1024,768]];
+    for(const [width,height] of sizes){
+      const {w,d,qa,errors}=await mount(width,height);check(w.innerWidth===width,'画面幅 '+width);
+      const person=qa.force();pointer(w,d,'pointerdown');qa.step(.5);
+      check(person.kind==='stumble'&&person.t>0,'乗車時につまずいて転ぶ');
+      check(qa.state.people.filter(p=>p.kind==='stumble').length===1,'転ぶ人は1人だけ');
+      check(person.a===1,'転んでも消えない');
+      if(params.get('preview')==='fall'){result.textContent='転ぶ場面（確認用・本番の保存データとは別）';return;}
+      qa.step(2.5);
+      check(person.kind==='missed'&&person.departed,'発車した電車をホームで見送る');
+      check(qa.state.people.includes(person),'発車時に乗り遅れた人を残す');
+      check(qa.state.state==='running'&&!qa.state.busy,'転ぶ人がいても発車できる');
+      check(person.sx===0&&qa.state.pos>0,'人はホームに残り、電車だけが進む');
+      if(params.get('preview')==='missed'){result.textContent='見送る場面（確認用・本番の保存データとは別）';return;}
+      qa.step(2.7);check(person.kind==='away'||person.kind==='gone','見送った後はホームを離れる');
+      let arrived=false;for(let i=0;i<80;i++){qa.step(.5);if(qa.state.state==='stopped'){arrived=true;break;}}
+      pointer(w,d,'pointerup');check(arrived,'次の駅まで正常に運転できる');
+      check(qa.state.elevation===1,'高架の駅でも乗降できる');
+      check(!qa.state.people.includes(person),'離れたホームの演出を片づける');
+      check(errors.length===0,'実行時エラーなし');
+      localStorage.removeItem(key);
+    }
+    check(localStorage.getItem('seibu')===realSave,'既存の保存データを変更しない');
+    result.textContent+='\n'+count+' checks passed';
+  }catch(e){result.textContent+='\nFAIL '+e.stack;result.style.color='#b31828';}
+  finally{if(key)localStorage.removeItem(key);document.querySelector('#run').disabled=false;}
+};
+if(params.has('preview'))document.querySelector('#run').click();
+</script>
