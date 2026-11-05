@@ -93,6 +93,22 @@ check('新宿線 準急 stops 武蔵関', stops('shinjuku', '準急', '武蔵関
 check('小江戸', ['西武新宿', '高田馬場', '東村山', '所沢', '狭山市', '本川越'].every(n => stops('shinjuku', '特急小江戸', n)) && !stops('shinjuku', '特急小江戸', '田無'));
 check('拝島ライナー skips 田無', !stops('haijima', '拝島ライナー', '田無') && stops('haijima', '拝島ライナー', '萩山'));
 check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 4);
+{
+  const route = R('sayama'), [shuttle, express, limited] = TYPES.sayama;
+  const a = i('sayama', '池袋'), b = i('sayama', '西武球場前');
+  const local = TYPES.sayama.find(t => t.k === '各停' && typeOK(route, t, a, b));
+  const semi = ty('sayama', '準急');
+  check('狭山線の保存済み種別番号を維持', shuttle.ser[0] === '7000' && express.k === '急行' && limited.k === '特急');
+  check('狭山線内の各停は西所沢から', !typeOK(route, shuttle, a, b) && typeOK(route, shuttle, i('sayama', '西所沢'), b));
+  for (const [from, to] of [[a, b], [b, a]]) {
+    const t = new Trip(route, from, to, 720, TYPES.sayama.indexOf(local), null);
+    check('池袋〜西武球場前の直通各停 ' + from, t.ok && t.type === local && t.stopCount() === route.st.length);
+    const s = new Trip(route, from, to, 720, TYPES.sayama.indexOf(semi), null);
+    check('池袋〜西武球場前の直通準急 ' + from, s.ok && s.type === semi && s.stopCount() === 13);
+  }
+  check('狭山線直通準急の停車駅', route.st.every(([name], index) => stopsAt(route, semi, index) ===
+    (name === '池袋' || name === '練馬' || index >= i('sayama', '石神井公園'))));
+}
 // 「○○から さきは かくえき」
 { const r = R('ikebukuro'), t = new Trip(r, 0, i('ikebukuro', '飯能'), 720, TYPES.ikebukuro.indexOf(ty('ikebukuro', '急行')), null);
   check('allFrom 所沢', t.st(t.allFrom(0))[0] === '所沢');
