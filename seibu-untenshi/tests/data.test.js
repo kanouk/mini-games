@@ -8,8 +8,8 @@ const html = fs.readFileSync(file, 'utf8');
 const js = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const cut = (from, to) => js.slice(js.indexOf(from), js.indexOf(to));
 const lib = new Function(cut('/* ===== データ', '/* ちず用の いち') +
-  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,NUMC,SCENE,TUNNEL,RIVER,UG,CITY};')();
-const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, NUMC, SCENE, TUNNEL, RIVER, UG, CITY } = lib;
+  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,NUMC,SCENE,TUNNEL,RIVER,UG,CITY,ELEVATED,elevationSection,elevationLevel,elevationAt};')();
+const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, NUMC, SCENE, TUNNEL, RIVER, UG, CITY, ELEVATED, elevationSection, elevationLevel, elevationAt } = lib;
 
 let pass = 0, fail = 0;
 function check(name, ok, info) { if (ok) pass++; else { fail++; console.log('NG', name, info || ''); } }
@@ -98,6 +98,46 @@ check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 
   check('allFrom 所沢', t.st(t.allFrom(0))[0] === '所沢');
   const lt = new Trip(r, 0, i('ikebukuro', '西武秩父'), 720, TYPES.ikebukuro.indexOf(ty('ikebukuro', '特急ちちぶ')), null);
   check('no allFrom for 特急', lt.allFrom(0) === -1); }
+
+// 高架：共通区間・上り下り・折返しと、地上への滑らかな接続。
+{
+  const train = (id, a, b) => new Trip(R(id), i(id, a), i(id, b), 720, 0);
+  const t = train('ikebukuro', '江古田', '大泉学園');
+  check('江古田は地上', elevationAt(t, 0) === 0);
+  check('桜台は高架', elevationAt(t, t.X(1)) === 1);
+  check('練馬は高架', elevationAt(t, t.X(2)) === 1);
+  check('大泉学園ホームは地上', elevationAt(t, t.X(t.len)) === 0);
+  check('池袋線の帰りも高架', elevationAt(t, t.X(t.len + 1)) === 1);
+  check('勾配の途中は中間の高さ', elevationLevel({a:4.75,b:4.91,from:4.75,to:12.2}, .5) > .49 && elevationLevel({a:4.75,b:4.91,from:4.75,to:12.2}, .5) < .51);
+  for (const id of ['yurakucho', 'toshima', 'sayama']) {
+    const r=R(id),a=i(id,'練馬'),b=i(id,'桜台');
+    if(a>=0&&b>=0)check('共通の高架 '+id,elevationLevel(elevationSection(r,a,b),.5)===1);
+    else if(a>=0)check('地下から練馬へは高架の本線に接続 '+id,elevationLevel(elevationSection(r,a,a+1),.5)===1);
+  }
+  const down=train('shinjuku','久米川','所沢'),up=train('shinjuku','所沢','久米川');
+  check('東村山の下りは高架',elevationAt(down,down.X(1))===1);
+  check('東村山の上りは地上',elevationAt(up,up.X(1))===0);
+  check('折返した上りは地上',elevationAt(down,down.X(3))===0);
+  check('折返した下りは高架',elevationAt(up,up.X(3))===1);
+  const branch=train('kokubunji','国分寺','東村山');
+  check('未高架化の国分寺線は地上',branch._heights.every(s=>s===null));
+  for (const trip of [t,down,up,branch,train('shinjuku','久米川','東村山')]) {
+    let last=elevationAt(trip,-1000);
+    for(let x=-990;x<=trip._D+1000;x+=10){const h=elevationAt(trip,x);
+      check('高さは0〜1',Number.isFinite(h)&&h>=0&&h<=1);
+      check('勾配・折返しで高さが飛ばない',Math.abs(h-last)<.06);
+      check('周回しても同じ地形',Math.abs(h-elevationAt(trip,x+trip._D))<1e-8);last=h;
+    }
+  }
+  // 本番と同じ踏切生成処理を実行して、高架・勾配上には作られないことを確認。
+  const features = cut('function pairKey(k)', '/* ---------- 保存');
+  const makeFeatures = new Function('trip','elevationAt','TUNNEL','UG','RIVER',
+    'const st=k=>trip.st(k),idx=k=>trip.idx(k),X=k=>trip.X(k),kAt=x=>trip.kAt(x),kNear=x=>Math.round(x);const hash=i=>.5;'+features+';return feat;');
+  let groundCrossings=0;
+  for(const trip of [t,down,up,branch]){const feature=makeFeatures(trip,elevationAt,TUNNEL,UG,RIVER);
+    for(let k=0;k<trip.len*4;k++)for(const x of feature(k).cr){groundCrossings++;check('踏切は必ず地上',elevationAt(trip,x)===0);}}
+  check('地上の踏切は残る',groundCrossings>0);
+}
 
 console.log(`pass ${pass} / fail ${fail}`);
 process.exit(fail ? 1 : 0);

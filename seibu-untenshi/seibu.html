@@ -123,12 +123,13 @@ button:focus-visible{outline:4px solid var(--panel);outline-offset:3px}
 .sw[aria-pressed="true"]{border:4px solid var(--go);box-shadow:0 0 0 3px var(--night) inset}
 .reset{min-height:60px;min-width:160px;border-radius:18px;background:var(--chip);color:#fff;font-size:20px;font-weight:800}
 
-.trip{padding-block:0 !important}
-.tripbox{max-width:980px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
-.triphead{display:flex;align-items:center;gap:10px;padding:16px 4px 12px}
+.trip{padding-block:0 !important;overflow:hidden !important}
+.tripbox{max-width:980px;margin:0 auto;height:100%;min-height:0;display:flex;flex-direction:column}
+.triphead{display:flex;align-items:center;gap:10px;padding:16px 4px 12px;flex:none}
 .triphead i{width:16px;height:16px;border-radius:50%;background:var(--lc)}
 .triphead h2{margin:0;font-size:24px;text-align:left}
-.tripgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;flex:1}
+.tripgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;align-content:start;
+  flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:4px}
 @media (max-width:720px){.tripgrid{grid-template-columns:minmax(0,1fr)}}
 .card{background:var(--panel);color:var(--ink);border-radius:18px;padding:14px}
 .card h3{margin:0 0 10px;font-size:15px;font-weight:800;color:#4b5873}
@@ -161,8 +162,11 @@ li:first-child>.strow::before{top:50%}li:last-child>.strow::before{bottom:50%}
 .strow:not(.in) .nm{opacity:.55}
 .strow .tag{margin-left:auto;font-size:12px;font-weight:800;color:#fff;background:var(--lc);border-radius:999px;padding:3px 10px}
 .strow:hover{background:#eaf0f8}
+.timecard{container-type:inline-size;min-width:0}
 .timecard .trow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto repeat(2,minmax(0,1fr));gap:6px;align-items:center}
 @media (max-width:460px){.timecard .trow{grid-template-columns:repeat(4,minmax(0,1fr))}.timecard .tbig{grid-column:1/-1;order:-1;justify-self:center}}
+@container (max-width:480px){.timecard .trow{grid-template-columns:repeat(4,minmax(0,1fr))}.timecard .tbig{grid-column:1/-1;order:-1;justify-self:center}}
+@container (max-width:300px){.timecard .trow{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .tstep{min-height:54px;min-width:0;padding:0 2px;white-space:nowrap;border-radius:14px;background:#e3e9f3;color:var(--ink);font-size:15px;font-weight:800;touch-action:manipulation}
 .tstep:active{transform:translateY(2px)}
 .tstep:disabled{opacity:.35;cursor:default}
@@ -182,8 +186,12 @@ li:first-child>.strow::before{top:50%}li:last-child>.strow::before{bottom:50%}
 .pbar{position:sticky;bottom:0;z-index:2;display:flex;gap:10px;justify-content:flex-end;max-width:980px;margin:16px auto 0;padding:14px 0 max(14px,env(safe-area-inset-bottom,0px));background:linear-gradient(rgba(20,33,61,0),rgba(20,33,61,.97) 30%)}
 .pbar .close{margin:0;min-width:0;flex:0 1 320px;white-space:nowrap;padding:0 18px;font-size:clamp(17px,4.6vw,22px)}
 .pbar .reset{flex:none;min-width:96px;padding:0 16px;font-size:clamp(17px,4.6vw,20px)}
+.trip .pbar{position:static;flex:none;align-self:stretch;max-width:none;margin:0;padding:14px 4px max(14px,env(safe-area-inset-bottom,0px));
+  background:var(--night);border-top:1px solid #354461}
+.trip .pbar .close{flex:1;max-width:320px;padding:0 12px;font-size:clamp(14px,3.7vw,22px)}
+.trip .pbar .reset{min-width:76px;padding:0 12px;font-size:clamp(16px,3.7vw,20px)}
 .tripsum{text-align:center;margin:6px 0 12px;font-size:20px;font-weight:800;color:#fff}
-.picker,.painter{position:absolute;inset:0;background:rgba(20,33,61,.96);overflow-y:auto;z-index:5;
+.picker,.painter{position:absolute;inset:0;background:var(--night);overflow-y:auto;z-index:5;
   padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .clock{display:flex;align-items:baseline;gap:6px}
 .clock b{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
@@ -610,6 +618,19 @@ const CITY={'池袋':1,'西武新宿':1,'高田馬場':1,'練馬':0.8,'石神井
 const TUNNEL={'吾野|西吾野':0.4,'正丸|西吾野':0.5,'正丸|芦ヶ久保':0.85,'横瀬|芦ヶ久保':0.3};
 const RIVER={'仏子|元加治':900,'新狭山|狭山市':900,'武蔵横手|高麗':420};
 const UG={'小竹向原':1,'新桜台':1};
+/* 高架の主な区間。境界のキロ・勾配はゲーム用の近似。東村山は下りのみ（2026年11月確認）。 */
+const ELEVATED={ikebukuro:{from:4.75,to:12.2},shinjuku:{from:24.85,to:27.15,dir:1}};
+function elevationSection(R,a,b){
+  const seg=R.seg[Math.min(a,b)],range=seg&&ELEVATED[seg.l];if(!range)return null;
+  const stations=BASE[seg.l].st,from=stations.find(s=>s[0]===R.st[a][0]),to=stations.find(s=>s[0]===R.st[b][0]);
+  if(!from||!to||(range.dir&&Math.sign(to[4]-from[4])!==range.dir))return null;
+  if(Math.max(from[4],to[4])<=range.from||Math.min(from[4],to[4])>=range.to)return null;
+  return {a:from[4],b:to[4],from:range.from,to:range.to};
+}
+function elevationLevel(section,f){
+  if(!section)return 0;const km=section.a+(section.b-section.a)*Math.max(0,Math.min(1,f));
+  const p=Math.max(0,Math.min(1,(km-section.from)/.16,(section.to-km)/.16));return p*p*(3-2*p);
+}
 
 /* ---------- しゃりょう（SERIES） ----------
    front：かおの かたち（flat ひらら／slant すこし ななめ／egg たまご／nra とがった／laview まるい ガラス／agt ちいさい）
@@ -681,53 +702,53 @@ const upto=(list,n)=>list.slice(0,list.indexOf(n)+1);
 const TYPES={
  ikebukuro:[
   T(IK.L,{range:['池袋','飯能'],ser:GEN}),
-  T(IK.SE,{stops:['池袋','練馬'].concat(IK_ALL.slice(IK_ALL.indexOf('石神井公園'))),ser:GEN,note:'石神井公園から さき かくえき'}),
-  T(IK.CSE,{stops:['池袋','練馬','大泉学園','保谷','ひばりヶ丘','東久留米','清瀬','秋津','所沢','西所沢','小手指'],dir:'up',t:[360,510],ser:GEN,note:'へいじつ あさの のぼり だけ・石神井公園 つうか'}),
-  T(IK.R,{stops:['池袋','練馬','石神井公園'].concat(IK_ALL.slice(IK_ALL.indexOf('ひばりヶ丘'))),ser:GEN,note:'ひばりヶ丘から さき かくえき'}),
-  T(IK.CE,{stops:['池袋','石神井公園','大泉学園','保谷','東久留米'].concat(IK_TOKO),dir:'up',t:[330,510],ser:GEN,note:'へいじつ あさの のぼり だけ'}),
-  T(IK.E,{stops:['池袋','石神井公園','ひばりヶ丘'].concat(IK_TOKO),ser:GEN,note:'所沢から さき かくえき'}),
-  T(IK.RE,{stops:['池袋','石神井公園','ひばりヶ丘','所沢','小手指','入間市'].concat(CHI_ALL),ser:GEN,note:'どにちが おおい・飯能から さき かくえき'}),
-  {k:'特急ちちぶ',y:'とっきゅう ちちぶごう',en:'Limited Express Chichibu',c:C.LTD,stops:['池袋','所沢','入間市','飯能','横瀬','西武秩父'],ser:['001'],dwell:1,note:'Laview・ざせき していせき'},
-  {k:'特急むさし',y:'とっきゅう むさしごう',en:'Limited Express Musashi',c:C.LTD,stops:['池袋','所沢','入間市','飯能'],ser:['001'],dwell:1,note:'Laview・ざせき していせき'},
-  T(IK.L,{range:['飯能','西武秩父'],ser:['7000','4000'],note:'やまの 4りょう'})
+  T(IK.SE,{stops:['池袋','練馬'].concat(IK_ALL.slice(IK_ALL.indexOf('石神井公園'))),ser:GEN,note:'石神井公園から各駅停車'}),
+  T(IK.CSE,{stops:['池袋','練馬','大泉学園','保谷','ひばりヶ丘','東久留米','清瀬','秋津','所沢','西所沢','小手指'],dir:'up',t:[360,510],ser:GEN,note:'平日朝・上りのみ・石神井公園通過'}),
+  T(IK.R,{stops:['池袋','練馬','石神井公園'].concat(IK_ALL.slice(IK_ALL.indexOf('ひばりヶ丘'))),ser:GEN,note:'ひばりヶ丘から各駅停車'}),
+  T(IK.CE,{stops:['池袋','石神井公園','大泉学園','保谷','東久留米'].concat(IK_TOKO),dir:'up',t:[330,510],ser:GEN,note:'平日朝・上りのみ'}),
+  T(IK.E,{stops:['池袋','石神井公園','ひばりヶ丘'].concat(IK_TOKO),ser:GEN,note:'所沢から各駅停車'}),
+  T(IK.RE,{stops:['池袋','石神井公園','ひばりヶ丘','所沢','小手指','入間市'].concat(CHI_ALL),ser:GEN,note:'主に土休日・飯能から各駅停車'}),
+  {k:'特急ちちぶ',y:'とっきゅう ちちぶごう',en:'Limited Express Chichibu',c:C.LTD,stops:['池袋','所沢','入間市','飯能','横瀬','西武秩父'],ser:['001'],dwell:1,note:'Laview・全席指定'},
+  {k:'特急むさし',y:'とっきゅう むさしごう',en:'Limited Express Musashi',c:C.LTD,stops:['池袋','所沢','入間市','飯能'],ser:['001'],dwell:1,note:'Laview・全席指定'},
+  T(IK.L,{range:['飯能','西武秩父'],ser:['7000','4000'],note:'山間区間・4両編成'})
  ],
  yurakucho:[
-  T(IK.L,{range:['小竹向原','飯能'],ser:THRU,thru:['新木場','しんきば','Shin-kiba'],note:'ちかてつ ゆうらくちょうせんへ'}),
-  T(IK.RE,{k:'快速急行',stops:['小竹向原','練馬','石神井公園','ひばりヶ丘','所沢','小手指','入間市','飯能'],ser:THRU,thru:['元町・中華街','もとまち・ちゅうかがい','Motomachi-Chukagai'],note:'Fライナー・ふくとしんせん→とうよこせん→みなとみらいせんへ'}),
-  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','石神井公園','保谷','所沢'],dir:'up',t:[380,480],ser:['40000'],dwell:1,thru:['豊洲','とよす','Toyosu'],note:'へいじつ あさ・ざせき していせき・豊洲ゆき'},
-  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','練馬','石神井公園','保谷','所沢','西所沢','小手指'],dir:'down',t:[1080,1380],ser:['40000'],dwell:1,note:'へいじつ よる・豊洲から'},
-  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','石神井公園','所沢','入間市','飯能','西武秩父'],dir:'down',t:[420,600],ser:['40000'],dwell:1,note:'どにち あさ・元町・中華街から'},
-  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','石神井公園','所沢','入間市','飯能','西武秩父'],dir:'up',t:[900,1140],ser:['40000'],dwell:1,thru:['元町・中華街','もとまち・ちゅうかがい','Motomachi-Chukagai'],note:'どにち ゆうがた・元町・中華街ゆき'},
-  T(IK.L,{range:['飯能','西武秩父'],ser:['7000','4000'],note:'やまの 4りょう'})
+  T(IK.L,{range:['小竹向原','飯能'],ser:THRU,thru:['新木場','しんきば','Shin-kiba'],note:'地下鉄有楽町線へ直通'}),
+  T(IK.RE,{k:'快速急行',stops:['小竹向原','練馬','石神井公園','ひばりヶ丘','所沢','小手指','入間市','飯能'],ser:THRU,thru:['元町・中華街','もとまち・ちゅうかがい','Motomachi-Chukagai'],note:'Fライナー・副都心線→東横線→みなとみらい線直通'}),
+  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','石神井公園','保谷','所沢'],dir:'up',t:[380,480],ser:['40000'],dwell:1,thru:['豊洲','とよす','Toyosu'],note:'平日朝・全席指定・豊洲行き'},
+  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','練馬','石神井公園','保谷','所沢','西所沢','小手指'],dir:'down',t:[1080,1380],ser:['40000'],dwell:1,note:'平日夜・豊洲発'},
+  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','石神井公園','所沢','入間市','飯能','西武秩父'],dir:'down',t:[420,600],ser:['40000'],dwell:1,note:'土休日朝・元町・中華街発'},
+  {k:'S-TRAIN',y:'エストレイン',en:'S-TRAIN',c:C.ST,stops:['小竹向原','石神井公園','所沢','入間市','飯能','西武秩父'],dir:'up',t:[900,1140],ser:['40000'],dwell:1,thru:['元町・中華街','もとまち・ちゅうかがい','Motomachi-Chukagai'],note:'土休日夕方・元町・中華街行き'},
+  T(IK.L,{range:['飯能','西武秩父'],ser:['7000','4000'],note:'山間区間・4両編成'})
  ],
  toshima:[
-  T(IK.L,{ser:GEN,note:'池袋から 豊島園へ ちょくつう'})
+  T(IK.L,{ser:GEN,note:'池袋から豊島園へ直通'})
  ],
  sayama:[
-  T(IK.L,{range:['西所沢','西武球場前'],ser:['7000'],note:'さやませんの なかを ワンマンで'}),
-  T(IK.E,{stops:['池袋','石神井公園','ひばりヶ丘','所沢','西所沢','下山口','西武球場前'],ser:GEN,note:'ドームで しあいの ひ など'}),
-  {k:'特急',y:'とっきゅう',en:'Limited Express',c:C.LTD,stops:['池袋','所沢','西武球場前'],ser:['001'],dwell:1,note:'ドームで しあいの ひの りんじ とっきゅう'}
+  T(IK.L,{range:['西所沢','西武球場前'],ser:['7000'],note:'狭山線内・ワンマン運転'}),
+  T(IK.E,{stops:['池袋','石神井公園','ひばりヶ丘','所沢','西所沢','下山口','西武球場前'],ser:GEN,note:'ドーム試合日などに運転'}),
+  {k:'特急',y:'とっきゅう',en:'Limited Express',c:C.LTD,stops:['池袋','所沢','西武球場前'],ser:['001'],dwell:1,note:'ドーム試合日の臨時特急'}
  ],
  shinjuku:[
   T(IK.L,{ser:GENS}),
-  T(IK.SE,{stops:SS_SE,ser:GENS,note:'上石神井から さき かくえき'}),
-  T(IK.E,{stops:SS_E,ser:GENS,note:'田無から さき かくえき'}),
-  T(IK.CE,{stops:['西武新宿','高田馬場','鷺ノ宮','上石神井','田無','東村山','所沢','新所沢','狭山市','本川越'],dir:'up',t:[330,510],ser:GENS,note:'へいじつ あさの のぼり だけ'}),
-  T(IK.RE,{stops:['西武新宿','高田馬場','田無','東村山','所沢','新所沢','入曽','狭山市','新狭山','南大塚','本川越'],dir:'down',t:[420,600],ser:GENS,note:'どにち あさの くだり 1ぽん だけ'}),
-  {k:'特急小江戸',y:'とっきゅう こえどごう',en:'Limited Express Koedo',c:C.LTD,stops:['西武新宿','高田馬場','東村山','所沢','狭山市','本川越'],ser:['10000'],dwell:1,note:'ニューレッドアロー・ざせき していせき'}
+  T(IK.SE,{stops:SS_SE,ser:GENS,note:'上石神井から各駅停車'}),
+  T(IK.E,{stops:SS_E,ser:GENS,note:'田無から各駅停車'}),
+  T(IK.CE,{stops:['西武新宿','高田馬場','鷺ノ宮','上石神井','田無','東村山','所沢','新所沢','狭山市','本川越'],dir:'up',t:[330,510],ser:GENS,note:'平日朝・上りのみ'}),
+  T(IK.RE,{stops:['西武新宿','高田馬場','田無','東村山','所沢','新所沢','入曽','狭山市','新狭山','南大塚','本川越'],dir:'down',t:[420,600],ser:GENS,note:'土休日朝・下り1本のみ'}),
+  {k:'特急小江戸',y:'とっきゅう こえどごう',en:'Limited Express Koedo',c:C.LTD,stops:['西武新宿','高田馬場','東村山','所沢','狭山市','本川越'],ser:['10000'],dwell:1,note:'ニューレッドアロー・全席指定'}
  ],
  haijima:[
   T(IK.L,{ser:GENS}),
-  T(IK.SE,{stops:upto(SS_SE,'小平').concat(HJ.slice(1)),ser:GENS,note:'はいじませんの なかは かくえき'}),
-  T(IK.E,{stops:upto(SS_E,'小平').concat(HJ.slice(1)),ser:GENS,note:'はいじませんの なかは かくえき'}),
-  {k:'拝島ライナー',y:'はいじまライナー',en:'Haijima Liner',c:C.HL,stops:['西武新宿','高田馬場'].concat(HJ),dir:'down',t:[1050,1410],ser:['40000'],dwell:1,note:'ゆうがた・よるの くだり・ざせき していせき'},
-  {k:'拝島ライナー',y:'はいじまライナー',en:'Haijima Liner',c:C.HL,stops:['西武新宿','高田馬場'].concat(HJ),dir:'up',t:[370,450],ser:['40000'],dwell:1,note:'へいじつ あさの のぼり'}
+  T(IK.SE,{stops:upto(SS_SE,'小平').concat(HJ.slice(1)),ser:GENS,note:'拝島線内は各駅停車'}),
+  T(IK.E,{stops:upto(SS_E,'小平').concat(HJ.slice(1)),ser:GENS,note:'拝島線内は各駅停車'}),
+  {k:'拝島ライナー',y:'はいじまライナー',en:'Haijima Liner',c:C.HL,stops:['西武新宿','高田馬場'].concat(HJ),dir:'down',t:[1050,1410],ser:['40000'],dwell:1,note:'夕方・夜の下り・全席指定'},
+  {k:'拝島ライナー',y:'はいじまライナー',en:'Haijima Liner',c:C.HL,stops:['西武新宿','高田馬場'].concat(HJ),dir:'up',t:[370,450],ser:['40000'],dwell:1,note:'平日朝・上り'}
  ],
- kokubunji:[T(IK.L,{ser:['8000','2000'],note:'6りょう'})],
- seibuen:[T(IK.L,{ser:['2000'],cars:4,note:'4りょう'})],
- tamako:[T(IK.L,{ser:['9000'],note:'4りょう ワンマン'})],
+ kokubunji:[T(IK.L,{ser:['8000','2000'],note:'6両編成'})],
+ seibuen:[T(IK.L,{ser:['2000'],cars:4,note:'4両編成'})],
+ tamako:[T(IK.L,{ser:['9000'],note:'4両編成・ワンマン運転'})],
  yamaguchi:[T(IK.L,{ser:['8500'],note:'レオライナー'})],
- tamagawa:[T(IK.L,{ser:['101'],note:'4りょう ワンマン'})]
+ tamagawa:[T(IK.L,{ser:['101'],note:'4両編成・ワンマン運転'})]
 };
 TYPES.kokubunji[0].cars=6;
 /* ---------- ろせん（ROUTES）：BASE の えきを つなげて、のりかえ なしで はしる くかんを つくる ---------- */
@@ -809,7 +830,8 @@ class Trip{
   arrMin(k){if(k<=0)return null;const n1=this.len,L=Math.floor((k-1)/n1);return this.legStart(L)+this.legTimes(L).a[k-L*n1];}
   depMin(k){const n1=this.len,L=Math.floor(k/n1),j=k-L*n1;return this.legStart(L)+(j===0?0:this.legTimes(L).d[j]);}
   /* がめんの うえの いち */
-  buildX(){const P=2*this.len;this._xs=[0];for(let k=0;k<P;k++)this._xs.push(this._xs[k]+gapX(this.dist(k)));this._D=this._xs[P];}
+  buildX(){const P=2*this.len;this._xs=[0];this._heights=[];for(let k=0;k<P;k++){
+    this._xs.push(this._xs[k]+gapX(this.dist(k)));this._heights.push(elevationSection(this.line,this.idx(k),this.idx(k+1)));}this._D=this._xs[P];}
   X(k){const P=2*this.len,q=Math.floor(k/P);return q*this._D+this._xs[k-q*P];}
   kAt(x){const P=2*this.len,q=Math.floor(x/this._D),r=x-q*this._D;let lo=0,hi=P;while(hi-lo>1){const m=(lo+hi)>>1;if(this._xs[m]<=r)lo=m;else hi=m;}return q*P+lo;}
   /* 「○○から さきは かくえきに とまります」の ○○（k より さきで、そこから しゅうてんまで ぜんぶ とまる はじめの えき） */
@@ -817,6 +839,16 @@ class Trip{
     let pass=false;for(let x=k+1;x<j;x++)if(!this.isStop(x))pass=true;
     /* とっきゅう・ライナーは いわない。のこりが 2えき だけの ときも いわない */
     if(this.tyAt(k).dwell)return -1;return pass&&j<end-1?j:-1;}
+}
+function elevationRaw(t,x){const k=t.kAt(x),P=t._heights.length,i=((k%P)+P)%P;
+  return elevationLevel(t._heights[i],(x-t.X(k))/(t.X(k+1)-t.X(k)));}
+function elevationAt(t,x){
+  /* 高架と地上でホームの高さが違う折返しも、近くの勾配でなめらかにつなぐ。 */
+  const k=t.kAt(x),turn=Math.round(k/t.len)*t.len;
+  for(const j of [turn,turn+t.len]){const edge=t.X(j);if(Math.abs(x-edge)>500)continue;
+    const a=elevationRaw(t,edge-.01),b=elevationRaw(t,edge+.01);if(Math.abs(a-b)<.01)continue;
+    const f=Math.max(0,Math.min(1,(x-edge+500)/1000)),p=f*f*(3-2*f);return a+(b-a)*p;}
+  return elevationRaw(t,x);
 }
 
 /* ちず用の いち（えきデータから つくる） */
@@ -882,7 +914,7 @@ function feat(k){
   else if(T){f.t0=b+g*(0.5-T/2);f.t1=b+g*(0.5+T/2);}
   const R=RIVER[pk];if(R){f.r0=b+g*0.42;f.r1=b+g*0.42+Math.min(g*0.3,R);}
   if(!U&&!(T>=0.8)){/* ふみきり：まちの くかんには だいたい ある */
-    [0.2,0.7].forEach((p,i)=>{const x=b+g*p+hash(k*7+i)*g*0.08;if(hash(k*3+i*5+idx(k))<0.62&&!(x>f.t0-300&&x<f.t1+300)&&!(x>f.r0-200&&x<f.r1+200))f.cr.push(x);});}
+    [0.2,0.7].forEach((p,i)=>{const x=b+g*p+hash(k*7+i)*g*0.08;if(hash(k*3+i*5+idx(k))<0.62&&elevationAt(trip,x)===0&&!(x>f.t0-300&&x<f.t1+300)&&!(x>f.r0-200&&x<f.r1+200))f.cr.push(x);});}
   featCache.set(key,f);return f;
 }
 function inTunnel(x){const f=feat(kAt(x));return x>=f.t0&&x<=f.t1;}
@@ -1020,7 +1052,7 @@ function paxUpdate(dt){
 function drawPeople(camX){
   for(const p of people){
     const x=p.X-camX;if(x<-30||x>bw+30||p.a<=0)continue;
-    const L=p.look,h=L.h,y=ty-5+p.yo,walking=p.kind==='toDoor'||p.kind==='away';
+    const L=p.look,h=L.h,y=railY(p.sx)-5+p.yo,walking=p.kind==='toDoor'||p.kind==='away';
     const sw=walking?Math.sin(p.ph)*2.2*h:0,dir=p.kind==='away'?p.dir:(p.kind==='toDoor'?(Math.sign(p.door-p.X)||1):1);
     ctx.globalAlpha=p.a;
     if(L.bag===1){ctx.fillStyle='#5b6b8c';rr(x-dir*7*h-2.5*h,y-8*h,5*h,7*h,1.2);ctx.fill();
@@ -1304,12 +1336,16 @@ function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r)
 /* えきの かんばん：えきばんごう・えきめい・よみ・ローマじ・となりの えき */
 function drawSign(c,k){
   const n=st(k),p=st(k-1),q=st(k+1),nc=numColor(n[3]);
-  const T=ty-242,W=270;
-  ctx.fillStyle='#8996aa';ctx.fillRect(c-86,ty-154,5,14);ctx.fillRect(c+81,ty-154,5,14);
+  const T=bh-80-242,W=270;
+  ctx.fillStyle='#8996aa';const postY=Math.min(T+88,ty-142),postH=Math.abs(T+88-(ty-142))+2;
+  ctx.fillRect(c-86,postY,5,postH);ctx.fillRect(c+81,postY,5,postH);
   ctx.fillStyle='#ffffff';ctx.strokeStyle='#14213d';ctx.lineWidth=3;rr(c-W/2,T,W,88,10);ctx.fill();ctx.stroke();
   /* えきばんごう（しかくの なかに ろせんの もじと ばんごう） */
-  if(n[3]){const bx=c-W/2+12,by=T+14;ctx.fillStyle='#fff';ctx.strokeStyle=nc;ctx.lineWidth=3;rr(bx,by,34,34,6);ctx.fill();ctx.stroke();
-    ctx.fillStyle=nc;ctx.fillRect(bx+1.5,by+1.5,31,12);
+  if(n[3]){const bx=c-W/2+12,by=T+14;
+    /* 路線色の外形を先に塗り、白は番号欄だけに入れる。上端に白い隙間を残さない。 */
+    ctx.fillStyle=nc;rr(bx-1.5,by-1.5,37,37,7.5);ctx.fill();
+    ctx.save();ctx.beginPath();ctx.rect(bx,by+13.5,34,21);ctx.clip();
+    ctx.fillStyle='#fff';rr(bx+1.5,by+1.5,31,31,4.5);ctx.fill();ctx.restore();
     ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='800 9px '+FONT;ctx.fillText(n[3].replace(/\d+/,''),bx+17,by+8);
     ctx.fillStyle='#14213d';ctx.font='800 15px '+FONT;ctx.fillText(n[3].replace(/^[A-Z]+/,''),bx+17,by+24);}
   ctx.fillStyle='#14213d';ctx.textAlign='center';ctx.textBaseline='middle';
@@ -1337,9 +1373,35 @@ function drawCrossingBack(x,near,t){
   if(near){ctx.moveTo(px,ty-30);ctx.lineTo(px-44,ty-30);}else{ctx.moveTo(px,ty-30);ctx.lineTo(px+4,ty-74);}ctx.stroke();
 }
 
+const RISE=54;
+function railY(worldX){return bh-80-RISE*elevationAt(trip,worldX);}
+function drawViaduct(camX,t){
+  const ground=bh-80,points=[];
+  for(let x=0;x<bw+12;x+=12){const h=elevationAt(trip,camX+x);points.push({x,h,y:ground-RISE*h,g:ground+14+44*h});}
+  /* 連続した輪郭を一度で塗り、細い白い継ぎ目を作らない。 */
+  ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y+16):ctx.moveTo(p.x,p.y+16));
+  for(let i=points.length-1;i>=0;i--){const p=points[i];ctx.lineTo(p.x,Math.max(p.y+16,p.g));}ctx.closePath();
+  ctx.fillStyle=tint('#dce5e4');ctx.fill();ctx.save();ctx.clip();
+  ctx.fillStyle=tint('#737e89');ctx.fillRect(0,ground+30,bw,22);ctx.fillStyle='#e9e9d8';
+  for(let j=Math.floor(camX/50)-1;j<=Math.floor((camX+bw)/50)+1;j++)ctx.fillRect(j*50-camX,ground+40,26,1.5);
+  ctx.restore();
+  /* 画面内に見えている高架だけに、桁・橋脚・橋脚の影を描く。 */
+  for(let j=Math.floor(camX/150)-1;j<=Math.floor((camX+bw)/150)+1;j++){
+    const wx=j*150,h=elevationAt(trip,wx);if(h<.15)continue;const x=wx-camX,top=railY(wx)+16,bottom=ground+14+44*h;
+    ctx.fillStyle='rgba(20,33,61,.16)';ctx.beginPath();ctx.ellipse(x+4,bottom+1,23,4,0,0,7);ctx.fill();
+    ctx.fillStyle=tint('#b8c2cc');ctx.fillRect(x-8,top,16,bottom-top);ctx.fillStyle=tint('#939fac');ctx.fillRect(x+3,top,5,bottom-top);
+    ctx.fillStyle=tint('#cbd2d9');rr(x-17,top-3,34,8,2);ctx.fill();ctx.fillRect(x-13,bottom-5,26,5);
+  }
+  ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y+6):ctx.moveTo(p.x,p.y+6));
+  for(let i=points.length-1;i>=0;i--){const p=points[i];ctx.lineTo(p.x,p.y+6+13*p.h);}ctx.closePath();ctx.fillStyle=tint('#9aa7b5');ctx.fill();
+  ctx.fillStyle='#6b4a32';
+  for(let j=Math.floor(camX/24)-1;j<=Math.floor((camX+bw)/24)+1;j++)ctx.fillRect(j*24-camX,railY(j*24)+2,9,5);
+  ctx.strokeStyle='#7b8494';ctx.lineWidth=3;ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+}
+
 function drawWorld(camX,t){
   const k0=kAt(camX)-1,k1=kAt(camX+bw)+1;
-  ctx.strokeStyle='#4b5563';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(0,ty-100);ctx.lineTo(bw,ty-100);ctx.stroke();
+  ctx.strokeStyle='#4b5563';ctx.lineWidth=1.4;ctx.beginPath();for(let x=0;x<=bw+24;x+=24){const y=railY(camX+x)-100;x?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
   for(let k=k0;k<=k1;k++){
     const f=feat(k),x0=f.t0-camX,x1=f.t1-camX;
     if(x1<-200||x0>bw+200)continue;
@@ -1362,15 +1424,17 @@ function drawWorld(camX,t){
   for(let k=k0;k<=k1;k++){const f=feat(k);f.cr.forEach(x=>{const c=x-camX;if(c<-80||c>bw+80)return;drawCrossingBack(c,Math.abs(x-pos)<1600||Math.abs(x-pos-FRONT)<1600,t);});}
   for(let k=k0;k<=k1;k++){
     const c=X(k)-camX;if(c<-420||c>bw+420)continue;
+    const baseTy=ty;ty=railY(X(k));
     ctx.fillStyle='#cfd6df';ctx.fillRect(c-310,ty-30,620,24);
     ctx.fillStyle='#9aa6b8';for(let x=-300;x<=300;x+=100)ctx.fillRect(c+x-3,ty-130,6,104);
     ctx.fillStyle='#eef1f5';ctx.fillRect(c-330,ty-142,660,14);ctx.fillStyle='#8996aa';ctx.fillRect(c-330,ty-130,660,3);
     drawSign(c,k);
+    ty=baseTy;
   }
   ctx.fillStyle='#8a94a6';
   for(let i=Math.floor(camX/300)-1;i<=Math.floor((camX+bw)/300)+1;i++){
     const X0=i*300+150;if(inTunnel(X0)||nearStation(X0,360))continue;
-    const x=X0-camX;ctx.fillRect(x-2,ty-114,4,118);ctx.fillRect(x-2,ty-108,26,3);
+    const x=X0-camX,y=railY(X0);ctx.fillRect(x-2,y-114,4,118);ctx.fillRect(x-2,y-108,26,3);
   }
   ctx.fillStyle='#b9a27a';ctx.fillRect(0,ty+6,bw,bh-ty);
   ctx.fillStyle='#9c9488';ctx.fillRect(0,ty+2,bw,9);
@@ -1382,9 +1446,7 @@ function drawWorld(camX,t){
     ctx.fillStyle='#8792a3';for(let X0=f.r0+40;X0<f.r1;X0+=180)ctx.fillRect(X0-camX-9,ty+12,18,bh-ty);
     ctx.fillStyle='#55606f';ctx.fillRect(x0,ty+2,x1-x0,12);
   }
-  ctx.fillStyle='#6b4a32';
-  for(let i=Math.floor(camX/24);i<=Math.floor((camX+bw)/24)+1;i++)ctx.fillRect(i*24-camX,ty+2,9,5);
-  ctx.fillStyle='#7b8494';ctx.fillRect(0,ty-1,bw,3);
+  drawViaduct(camX,t);
   /* ふみきりの みち（てまえ） */
   for(let k=k0;k<=k1;k++){feat(k).cr.forEach(x=>{const c=x-camX;if(c<-80||c>bw+80)return;ctx.fillStyle='#7d8590';ctx.beginPath();ctx.moveTo(c-30,ty+2);ctx.lineTo(c+30,ty+2);ctx.lineTo(c+52,bh);ctx.lineTo(c-52,bh);ctx.closePath();ctx.fill();
     ctx.fillStyle='#f1f1f1';ctx.fillRect(c-1,ty+12,2,bh-ty);ctx.fillStyle='#55606f';ctx.fillRect(c-30,ty+1,60,4);});}
@@ -1504,14 +1566,19 @@ function drawPanto(px,top){
 function dark(hex){const n=parseInt(hex.slice(1),16),r=n>>16,g=(n>>8)&255,b=n&255;return (r*299+g*587+b*114)/1000<150;}
 function shade(top,bot){const g=ctx.createLinearGradient(0,top,0,bot);g.addColorStop(0,'rgba(255,255,255,.3)');g.addColorStop(0.45,'rgba(255,255,255,0)');g.addColorStop(1,'rgba(0,0,0,.14)');return g;}
 /* れっしゃ ぜんたい：x1 が せんとう。うしろへ S.cars りょう ならべる（がめんの そとに でたら やめる） */
-function drawConsist(S,xFront,top,bot,lit,ledInfo,minX){
+function drawConsist(S,xFront,top,bot,lit,ledInfo,minX,camX=null){
   const L=carLen(S),cars=[];let x1=xFront;
   for(let n=1;n<=S.cars;n++){const x0=x1-L;cars.push([x0,x1,n]);if(x0<minX)break;x1=x0-4;}
   for(let i=cars.length-1;i>=0;i--){const [x0,x1,n]=cars[i],last=n===S.cars;
+    ctx.save();
+    if(camX!==null){const mid=(x0+x1)/2,wx=camX+mid,y=railY(wx),angle=Math.atan2(railY(wx+L*.4)-railY(wx-L*.4),L*.8);
+      ctx.translate(mid,y);ctx.rotate(angle);ctx.translate(-mid,-ty);
+      ctx.fillStyle='rgba(20,25,35,.22)';ctx.fillRect(x0,ty+1,L,4);}
     if(i>0){ctx.fillStyle='#2b2f36';rr(x1-1,top+5,6,bot-top-7,2);ctx.fill();}
     if(last&&n>1){ctx.save();ctx.translate(x0+x1,0);ctx.scale(-1,1);drawCar(x0,x1,top,bot,{cab:true,num:n,lit,tail:true,mir:true,led:ledInfo},S);ctx.restore();}
     else drawCar(x0,x1,top,bot,{cab:n===1,num:n,lit,led:ledInfo},S);
     if(!S.noPanto&&(S.panto||[2]).includes(n))drawPanto((x0+x1)/2+(n===1?-20:0),top);
+    ctx.restore();
   }
 }
 function computeDoors(){const S=SER(),L=carLen(S),out=[];let x1=FRONT;
@@ -1521,8 +1588,7 @@ function drawTrain(t){
   const cx=bw/2,dy=(!reduced&&v>1)?Math.sin(t*31)*0.6*(v/MAXV):0,S=SER();
   const top=ty-60+dy,bot=ty-10+dy,lit=inTunnel(pos)||night>0.45;
   const k=curSeg(),ty0=tyAt(k),d=dest(k);
-  ctx.fillStyle='rgba(20,25,35,.22)';ctx.fillRect(-10,ty+1,cx+FRONT+10,4);
-  drawConsist(S,cx+FRONT,top,bot,lit,[ty0.k,ty0.c,d[0]],-20);
+  drawConsist(S,cx+FRONT,top,bot,lit,[ty0.k,ty0.c,d[0]],-20,pos-cx);
   if(hornT>0)bubble(cx+210,top-36,'ファーン！',Math.min(1,hornT*2),1);
   if(crewT>0)bubble(Math.max(110,cx-170),top-36,crewText,Math.min(1,crewT*2),-1);
 }
@@ -1538,15 +1604,17 @@ function drawNearPlatform(camX,t){
   const k0=kAt(camX)-1,k1=kAt(camX+bw)+1;
   for(let k=k0;k<=k1;k++){
     const c=X(k)-camX;if(c<-400||c>bw+400)continue;
-    ctx.fillStyle='#d5dbe3';ctx.fillRect(c-310,ty-12,620,8);
-    ctx.fillStyle='#facc15';ctx.fillRect(c-310,ty-10,620,3);
-    ctx.fillStyle='#98a3b4';ctx.fillRect(c-310,ty-4,620,22);
-    ctx.fillStyle='#ffffff';DOORS.forEach(d=>{ctx.fillRect(c+d-11,ty-7,4,1.6);ctx.fillRect(c+d+7,ty-7,4,1.6);});
+    const y=railY(X(k));ctx.fillStyle='#d5dbe3';ctx.fillRect(c-310,y-12,620,8);
+    ctx.fillStyle='#facc15';ctx.fillRect(c-310,y-10,620,3);
+    ctx.fillStyle='#98a3b4';ctx.fillRect(c-310,y-4,620,22);
+    ctx.fillStyle='#ffffff';DOORS.forEach(d=>{ctx.fillRect(c+d-11,y-7,4,1.6);ctx.fillRect(c+d+7,y-7,4,1.6);});
   }
   /* ふみきり（てまえの けいほうき） */
+  const savedTy=ty;ty=bh-80;
   for(let k=k0;k<=k1;k++)feat(k).cr.forEach(x=>{const c=x-camX-26;if(c<-40||c>bw+40)return;const near=Math.abs(x-pos)<1600||Math.abs(x-pos-FRONT)<1600,on=near&&!reduced?Math.floor(t*2.4)%2:-1;
     ctx.fillStyle='#3a3f47';ctx.fillRect(c-1.5,ty-50,3,62);
     [-5,5].forEach((o,i)=>{ctx.fillStyle='#22262c';ctx.beginPath();ctx.arc(c+o,ty-44,3.6,0,7);ctx.fill();ctx.fillStyle=(near&&(reduced||on!==i))?'#ff2a2a':'#5a1d1d';ctx.beginPath();ctx.arc(c+o,ty-44,2.5,0,7);ctx.fill();});});
+  ty=savedTy;
 }
 
 /* ---------- がめん ---------- */
@@ -1575,7 +1643,8 @@ function frame(now){
   update(dt);
   ctx.setTransform(DPR*s,0,0,DPR*s,0,0);
   const camX=pos-bw/2;
-  drawBackground(camX,t);drawWorld(camX,t);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.32*night)+')';ctx.fillRect(0,0,bw,bh);}drawTrain(t);drawNearPlatform(camX,t);drawPeople(camX);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.12*night)+')';ctx.fillRect(0,0,bw,bh);}drawMap(t);
+  ty=bh-80;drawBackground(camX,t);drawWorld(camX,t);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.32*night)+')';ctx.fillRect(0,0,bw,bh);}
+  ty=railY(pos);drawTrain(t);drawNearPlatform(camX,t);drawPeople(camX);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.12*night)+')';ctx.fillRect(0,0,bw,bh);}drawMap(t);
   syncUI();
   requestAnimationFrame(frame);
 }
