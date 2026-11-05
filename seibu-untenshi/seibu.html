@@ -668,7 +668,8 @@ const ROUTES=[
  route('ikebukuro','池袋線・西武秩父線','いけぶくろせん・せいぶちちぶせん','#ef7a00',G1,[['ikebukuro','池袋','吾野'],['chichibu','吾野','西武秩父']]),
  route('yurakucho','西武有楽町線・池袋線','ゆうらくちょうせん・いけぶくろせん','#c75f00',G1,[['yurakucho','小竹向原','練馬'],['ikebukuro','練馬','吾野'],['chichibu','吾野','西武秩父']]),
  route('toshima','池袋線・豊島線','いけぶくろせん・としません','#e88a2e',G1,[['ikebukuro','池袋','練馬'],['toshima','練馬','豊島園']]),
- route('sayama','池袋線・狭山線','いけぶくろせん・さやません','#d9822b',G1,[['ikebukuro','池袋','西所沢'],['sayama','西所沢','西武球場前']]),
+ route('sayama-local','狭山線','さやません','#d9822b',G1,[['sayama','西所沢','西武球場前']]),
+ route('sayama-through','池袋線・狭山線 直通','いけぶくろせん・さやません ちょくつう','#d9822b',G1,[['ikebukuro','池袋','西所沢'],['sayama','西所沢','西武球場前']]),
  route('shinjuku','新宿線','しんじゅくせん','#00a6bf',G2,[['shinjuku','西武新宿','本川越']]),
  route('haijima','新宿線・拝島線','しんじゅくせん・はいじません','#0089a0',G2,[['shinjuku','西武新宿','小平'],['haijima','小平','拝島']]),
  route('kokubunji','国分寺線','こくぶんじせん','#38b35c',G2,[['kokubunji','国分寺','東村山']]),
@@ -679,7 +680,7 @@ const ROUTES=[
 ];
 
 /* はじめに えらばれる でんしゃ：[のる えき, おりる えき, しゅべつ] */
-const DEF={ikebukuro:['池袋','飯能','急行'],yurakucho:['小竹向原','飯能','各停'],toshima:['池袋','豊島園','各停'],sayama:['西所沢','西武球場前','各停'],shinjuku:['西武新宿','本川越','急行'],haijima:['西武新宿','拝島','急行']};
+const DEF={ikebukuro:['池袋','飯能','急行'],yurakucho:['小竹向原','飯能','各停'],toshima:['池袋','豊島園','各停'],shinjuku:['西武新宿','本川越','急行'],haijima:['西武新宿','拝島','急行']};
 
 /* ---------- しゅべつ（TYPES） ----------
    k：ひょうじ、y：よみ、en：えいご、c：いろ、stops：とまる えき（ない ときは はんいの ぜんぶの えき）、range：はしる くかん、
@@ -731,13 +732,12 @@ const TYPES={
  toshima:[
   T(IK.L,{ser:GEN,note:'池袋から豊島園へ直通'})
  ],
- sayama:[
-  T(IK.L,{range:['西所沢','西武球場前'],ser:['7000'],note:'狭山線内・ワンマン運転'}),
-  T(IK.E,{stops:['池袋','石神井公園','ひばりヶ丘','所沢','西所沢','下山口','西武球場前'],ser:GEN,note:'ドーム試合日などに運転'}),
-  {k:'特急',y:'とっきゅう',en:'Limited Express',c:C.LTD,stops:['池袋','所沢','西武球場前'],ser:['001'],dwell:1,note:'ドーム試合日の臨時特急'},
-  // 保存済みの種別番号を保つため、直通の種別は末尾に追加する。
+ 'sayama-local':[T(IK.L,{ser:['7000'],note:'ワンマン運転'})],
+ 'sayama-through':[
   T(IK.L,{ser:GEN,note:'池袋線・狭山線直通'}),
-  T(IK.SE,{stops:upto(IK_SE_STOPS,'西所沢').concat(['下山口','西武球場前']),ser:GEN,note:'練馬・石神井公園から各駅停車'})
+  T(IK.SE,{stops:upto(IK_SE_STOPS,'西所沢').concat(['下山口','西武球場前']),ser:GEN,note:'練馬・石神井公園から各駅停車'}),
+  T(IK.E,{stops:['池袋','石神井公園','ひばりヶ丘','所沢','西所沢','下山口','西武球場前'],ser:GEN,note:'ドーム試合日などに運転'}),
+  {k:'特急',y:'とっきゅう',en:'Limited Express',c:C.LTD,stops:['池袋','所沢','西武球場前'],ser:['001'],dwell:1,note:'ドーム試合日の臨時特急'}
  ],
  shinjuku:[
   T(IK.L,{ser:GENS}),
@@ -792,6 +792,18 @@ function typeOK(R,ty,a,b){
   return true;
 }
 function typesOf(R){return TYPES[R.id]||[];}
+function restoreSayamaSelection(data){
+  if(data.lineId!=='sayama')return data;
+  const through=ROUTES.find(r=>r.id==='sayama-through');
+  const branchStart=stIndex(through,'西所沢');
+  const inBranch=index=>Number.isInteger(index)&&index>=branchStart&&index<through.st.length;
+  if(data.ti===0&&inBranch(data.tripA)&&inBranch(data.tripB)){
+    return {...data,lineId:'sayama-local',tripA:data.tripA-branchStart,tripB:data.tripB-branchStart};
+  }
+  // 旧順は狭山線内の各停、急行、特急、直通各停、準急。
+  const throughType=[undefined,2,3,0,1][data.ti];
+  return {...data,lineId:'sayama-through',ti:throughType};
+}
 function serOf(id){return SERIES[id]||SERIES[Object.keys(SERIES)[0]];}
 
 /* ---------- のる でんしゃ（Trip） ----------
@@ -2028,7 +2040,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)holders.cle
 window.addEventListener('resize',resize);
 
 function start(data){
-  const d=Object.assign({},load(),data||{});
+  const d=restoreSayamaSelection(Object.assign({},load(),data||{}));
   auto=!!d.auto;let startMin;{const hs=data&&data.startMin;if(Number.isInteger(hs)&&hs>=300&&hs<=1440)startMin=hs;else{const now=new Date();startMin=Math.round((now.getHours()*60+now.getMinutes())/5)*5;}}if(typeof d.mapOn==='boolean')mapOn=d.mapOn;applyMap();if(typeof d.soundOn==='boolean')soundOn=d.soundOn;
   const R=ROUTES.find(l=>l.id===d.lineId)||ROUTES[0],df=defTrip(R);let t=new Trip(R,d.lineId?d.tripA:df.a,d.lineId?d.tripB:df.b,startMin,d.lineId?d.ti:df.ti,d.ser);if(!t.ok)t=new Trip(R,df.a,df.b,startMin,df.ti,null);
   setTrip(t,false);

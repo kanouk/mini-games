@@ -8,8 +8,8 @@ const html = fs.readFileSync(file, 'utf8');
 const js = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const cut = (from, to) => js.slice(js.indexOf(from), js.indexOf(to));
 const lib = new Function(cut('/* ===== データ', '/* ちず用の いち') +
-  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,NUMC,SCENE,TUNNEL,RIVER,UG,CITY,ELEVATED,elevationSection,elevationLevel,elevationAt};')();
-const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, NUMC, SCENE, TUNNEL, RIVER, UG, CITY, ELEVATED, elevationSection, elevationLevel, elevationAt } = lib;
+  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,restoreSayamaSelection,NUMC,SCENE,TUNNEL,RIVER,UG,CITY,ELEVATED,elevationSection,elevationLevel,elevationAt};')();
+const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, restoreSayamaSelection, NUMC, SCENE, TUNNEL, RIVER, UG, CITY, ELEVATED, elevationSection, elevationLevel, elevationAt } = lib;
 
 let pass = 0, fail = 0;
 function check(name, ok, info) { if (ok) pass++; else { fail++; console.log('NG', name, info || ''); } }
@@ -94,20 +94,26 @@ check('小江戸', ['西武新宿', '高田馬場', '東村山', '所沢', '狭�
 check('拝島ライナー skips 田無', !stops('haijima', '拝島ライナー', '田無') && stops('haijima', '拝島ライナー', '萩山'));
 check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 4);
 {
-  const route = R('sayama'), [shuttle, express, limited] = TYPES.sayama;
-  const a = i('sayama', '池袋'), b = i('sayama', '西武球場前');
-  const local = TYPES.sayama.find(t => t.k === '各停' && typeOK(route, t, a, b));
-  const semi = ty('sayama', '準急');
-  check('狭山線の保存済み種別番号を維持', shuttle.ser[0] === '7000' && express.k === '急行' && limited.k === '特急');
-  check('狭山線内の各停は西所沢から', !typeOK(route, shuttle, a, b) && typeOK(route, shuttle, i('sayama', '西所沢'), b));
+  const id = 'sayama-through', route = R(id), services = TYPES[id];
+  const a = i(id, '池袋'), b = i(id, '西武球場前');
+  const local = ty(id, '各停'), semi = ty(id, '準急');
+  const shuttle = R('sayama-local');
+  check('狭山線内の駅候補', shuttle.st.map(s => s[0]).join(',') === '西所沢,下山口,西武球場前');
+  check('狭山線内は7000系の各停', TYPES[shuttle.id].length === 1 && ty(shuttle.id, '各停')?.ser[0] === '7000');
   for (const [from, to] of [[a, b], [b, a]]) {
-    const t = new Trip(route, from, to, 720, TYPES.sayama.indexOf(local), null);
+    const t = new Trip(route, from, to, 720, services.indexOf(local), null);
     check('池袋〜西武球場前の直通各停 ' + from, t.ok && t.type === local && t.stopCount() === route.st.length);
-    const s = new Trip(route, from, to, 720, TYPES.sayama.indexOf(semi), null);
+    const s = new Trip(route, from, to, 720, services.indexOf(semi), null);
     check('池袋〜西武球場前の直通準急 ' + from, s.ok && s.type === semi && s.stopCount() === 13);
   }
   check('狭山線直通準急の停車駅', route.st.every(([name], index) => stopsAt(route, semi, index) ===
-    (name === '池袋' || name === '練馬' || index >= i('sayama', '石神井公園'))));
+    (name === '池袋' || name === '練馬' || index >= i(id, '石神井公園'))));
+  const oldShuttle = restoreSayamaSelection({lineId:'sayama',tripA:19,tripB:17,ti:0,ser:'7000'});
+  check('旧狭山線内の逆方向を復元', oldShuttle.lineId === shuttle.id && oldShuttle.tripA === 2 && oldShuttle.tripB === 0 && oldShuttle.ti === 0 && oldShuttle.ser === '7000');
+  ['急行', '特急', '各停', '準急'].forEach((name, index) => {
+    const saved = restoreSayamaSelection({lineId:'sayama',tripA:0,tripB:19,ti:index+1});
+    check('旧直通の種別を復元 ' + name, saved.lineId === id && saved.tripA === a && saved.tripB === b && services[saved.ti]?.k === name);
+  });
 }
 // 「○○から さきは かくえき」
 { const r = R('ikebukuro'), t = new Trip(r, 0, i('ikebukuro', '飯能'), 720, TYPES.ikebukuro.indexOf(ty('ikebukuro', '急行')), null);
@@ -125,7 +131,7 @@ check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 
   check('大泉学園ホームは地上', elevationAt(t, t.X(t.len)) === 0);
   check('池袋線の帰りも高架', elevationAt(t, t.X(t.len + 1)) === 1);
   check('勾配の途中は中間の高さ', elevationLevel({a:4.75,b:4.91,from:4.75,to:12.2}, .5) > .49 && elevationLevel({a:4.75,b:4.91,from:4.75,to:12.2}, .5) < .51);
-  for (const id of ['yurakucho', 'toshima', 'sayama']) {
+  for (const id of ['yurakucho', 'toshima', 'sayama-through']) {
     const r=R(id),a=i(id,'練馬'),b=i(id,'桜台');
     if(a>=0&&b>=0)check('共通の高架 '+id,elevationLevel(elevationSection(r,a,b),.5)===1);
     else if(a>=0)check('地下から練馬へは高架の本線に接続 '+id,elevationLevel(elevationSection(r,a,a+1),.5)===1);
