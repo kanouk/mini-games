@@ -12,8 +12,10 @@ async function mount(width,height){
   source=source.replaceAll("'seibu'",JSON.stringify(key)).replace('<script>','<script>Math.random=()=>.6;window.requestAnimationFrame=()=>0;');
   const marker='if(hot&&hot.ready)hot.ready(start);else start(hot&&hot.data?hot.data:{});';
   if(!source.includes(marker))throw Error('QA insertion point not found');
-  source=source.replace(marker,marker+`window.qa={
-    get state(){return {state,pos,target,doorAnim,people,busy:paxBusy(),elevation:elevationAt(trip,pos)};},
+  source=source.replace(marker,marker+`const clipCalls=[];const originalPlay=playClip;playClip=name=>{clipCalls.push(name);return originalPlay(name)};window.qa={
+    get state(){return {state,pos,target,doorAnim,people,busy:paxBusy(),elevation:elevationAt(trip,pos),change:driverChange,clipCalls};},
+    async audio(){await clipsReady;return {ah:clipBuffers.ah?.duration,handover:clipBuffers.handover?.duration};},
+    hoya(){const R=ROUTES[0];setTrip(new Trip(R,stIndex(R,'大泉学園'),stIndex(R,'ひばりヶ丘'),600,0,'40000'),false);},
     force(){people.forEach(p=>p.willTrip=false);const p=pickStumbler(people,()=>0);if(!p)throw Error('No candidate');p.willTrip=true;return p;},
     step(seconds){for(let i=0;i<Math.ceil(seconds/.05);i++){this.tick=(this.tick||1000)+50;frame(this.tick);}},
   };`);
@@ -48,6 +50,21 @@ document.querySelector('#run').onclick=async()=>{
       check(qa.state.elevation===1,'高架の駅でも乗降できる');
       check(!qa.state.people.includes(person),'離れたホームの演出を片づける');
       check(errors.length===0,'実行時エラーなし');
+      const audio=await qa.audio();check(audio.ah>.05&&audio.ah<1&&audio.handover>1&&audio.handover<5,'埋め込み音声2本を実ブラウザでデコードできる');
+      check(qa.state.clipCalls.filter(n=>n==='ah').length===1,'転んだ瞬間の声は1回だけ');
+      qa.hoya();pointer(w,d,'pointerdown');
+      let atHoya=false;for(let i=0;i<120;i++){qa.step(.5);if(qa.state.change){atHoya=true;break;}}
+      check(atHoya&&qa.state.state==='stopped','保谷への実際の到着で運転士交代が始まる');
+      pointer(w,d,'pointerup');pointer(w,d,'pointerdown');qa.step(1.1);
+      check(qa.state.state==='stopped'&&qa.state.change.started,'ボタンを押しても交代中は発車しない');
+      const notice=d.querySelector('#driverNotice'),rect=notice.getBoundingClientRect();
+      check(!notice.hidden&&rect.left>=0&&rect.right<=width,'交代の挨拶が画面内に収まる');
+      check(qa.state.change.old.driver&&qa.state.change.next.driver,'2人の制服の運転士を表示する');
+      if(params.get('preview')==='driver'){result.textContent='保谷駅の運転士交代（確認用・本番の保存データとは別）';return;}
+      qa.step(5);check(qa.state.change===null&&qa.state.state!=='stopped','交代後は長押しのまま発車できる');
+      check(qa.state.clipCalls.filter(n=>n==='handover').length===1,'男性の交代挨拶は1回だけ');
+      pointer(w,d,'pointerup');
+      check(errors.length===0,'交代から発車まで実行時エラーなし');
       localStorage.removeItem(key);
     }
     check(localStorage.getItem('seibu')===realSave,'既存の保存データを変更しない');
