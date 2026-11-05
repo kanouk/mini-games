@@ -688,6 +688,7 @@ const DEF={ikebukuro:['池袋','飯能','急行'],yurakucho:['小竹向原','飯
    ていしゃえきは 2025年3月15日の ダイヤかいせい（2026年11月 じてん）を もとに しています */
 const C={L:'#5a6a7e',SE:'#2eab8d',R:'#00a3d9',CE:'#f39800',E:'#e60012',RE:'#8e3b9e',LTD:'#c8102e',ST:'#5f9e12',HL:'#8a9600'};
 const IK_ALL=['池袋','椎名町','東長崎','江古田','桜台','練馬','中村橋','富士見台','練馬高野台','石神井公園','大泉学園','保谷','ひばりヶ丘','東久留米','清瀬','秋津','所沢','西所沢','小手指','狭山ヶ丘','武蔵藤沢','稲荷山公園','入間市','仏子','元加治','飯能'];
+const IK_SE_STOPS=['池袋','練馬'].concat(IK_ALL.slice(IK_ALL.indexOf('石神井公園')));
 const IK_TOKO=['所沢','西所沢','小手指','狭山ヶ丘','武蔵藤沢','稲荷山公園','入間市','仏子','元加治','飯能'];/* 所沢から さきは かくえき */
 const CHI_ALL=['飯能','東飯能','高麗','武蔵横手','東吾野','吾野','西吾野','正丸','芦ヶ久保','横瀬','西武秩父'];
 const IK={
@@ -708,7 +709,7 @@ const upto=(list,n)=>list.slice(0,list.indexOf(n)+1);
 const TYPES={
  ikebukuro:[
   T(IK.L,{range:['池袋','飯能'],ser:GEN}),
-  T(IK.SE,{stops:['池袋','練馬'].concat(IK_ALL.slice(IK_ALL.indexOf('石神井公園'))),ser:GEN,note:'石神井公園から各駅停車'}),
+  T(IK.SE,{stops:IK_SE_STOPS,ser:GEN,note:'石神井公園から各駅停車'}),
   T(IK.CSE,{stops:['池袋','練馬','大泉学園','保谷','ひばりヶ丘','東久留米','清瀬','秋津','所沢','西所沢','小手指'],dir:'up',t:[360,510],ser:GEN,note:'平日朝・上りのみ・石神井公園通過'}),
   T(IK.R,{stops:['池袋','練馬','石神井公園'].concat(IK_ALL.slice(IK_ALL.indexOf('ひばりヶ丘'))),ser:GEN,note:'ひばりヶ丘から各駅停車'}),
   T(IK.CE,{stops:['池袋','石神井公園','大泉学園','保谷','東久留米'].concat(IK_TOKO),dir:'up',t:[330,510],ser:GEN,note:'平日朝・上りのみ'}),
@@ -733,7 +734,10 @@ const TYPES={
  sayama:[
   T(IK.L,{range:['西所沢','西武球場前'],ser:['7000'],note:'狭山線内・ワンマン運転'}),
   T(IK.E,{stops:['池袋','石神井公園','ひばりヶ丘','所沢','西所沢','下山口','西武球場前'],ser:GEN,note:'ドーム試合日などに運転'}),
-  {k:'特急',y:'とっきゅう',en:'Limited Express',c:C.LTD,stops:['池袋','所沢','西武球場前'],ser:['001'],dwell:1,note:'ドーム試合日の臨時特急'}
+  {k:'特急',y:'とっきゅう',en:'Limited Express',c:C.LTD,stops:['池袋','所沢','西武球場前'],ser:['001'],dwell:1,note:'ドーム試合日の臨時特急'},
+  // 保存済みの種別番号を保つため、直通の種別は末尾に追加する。
+  T(IK.L,{ser:GEN,note:'池袋線・狭山線直通'}),
+  T(IK.SE,{stops:upto(IK_SE_STOPS,'西所沢').concat(['下山口','西武球場前']),ser:GEN,note:'練馬・石神井公園から各駅停車'})
  ],
  shinjuku:[
   T(IK.L,{ser:GENS}),
