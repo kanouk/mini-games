@@ -582,6 +582,12 @@ function load(){try{return JSON.parse(localStorage.getItem('shk')||'{}')||{};}ca
 
 /* ---------- おと ---------- */
 let AC=null,master,motorOsc,motorGain,motorFilt,noiseBuf=null;
+const STUMBLE_VOICE='SUQzBAAAAAAAIlRTU0UAAAAOAAADTGF2ZjYwLjMuMTAwAAAAAAAAAAAAAAD/84TAAAAAAAAAAAAASW5mbwAAAA8AAAAHAAAEsABHR0dHR0dHR0dHR0dHR2ZmZmZmZmZmZmZmZmZmhYWFhYWFhYWFhYWFhYWjo6Ojo6Ojo6Ojo6Ojo6PCwsLCwsLCwsLCwsLCwuHh4eHh4eHh4eHh4eHh//////////////////8AAAAATGF2YzYwLjMuAAAAAAAAAAAAAAAAJAPxAAAAAAAABLDhPGaeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/82TEABdxQnlHQRgAAMccoxuAAAAGPJYwAAACkADFv1w4GLAAAAEUOBgbAYG56IiO7u7v///uiE4GBgYGHigIBjicH5QEDnwICAIAhlwfP6MHwfB8H+q8H//8QGPQQ//r0FOD4Pg+D6BAcUIEIAACqSsXXfYaDWMrM4EgYSJAavX/zLBy/ZcwuWIMIGZAsEX/82TEJSXy6qFVmJgAfNgGView98ZQskwTgpE8VS+PxTJYUOLsjhlKRmLgLo4TUjxAYeyitSKpsizMko+dSRTNThGrIoT6eaoHzJWkfLhfutbl4spt0S6XEjJBtMuOiijt/+tnsrX7qRf//1V7/+9z6Yp+MAf/x/rkDmCfsUJ3JboiPWKgMUQ2Nue+K451cQ7/82TEEB850qgBmMAAiVsZfRrCody2kMotl8S8i302RVihjSaz8OILCjcOuWhYxu9ATdWht3o5xo8PJyTUhdF12tuBCKm+58u38b03vKl+9hne3fqVLGf/a5qzhlQZy6V/vfe03MN/vVTCzlnvX/U3vKwKtam3/qb/1sEVLqP7xq2NkXExhi0HsuRCSdS9KoX/82TEFiKBzqABmMAAXxAMmMFZo4JnrodGnYa5QdBYjMH4QAqSUydjCFSTqRi02XPm8rU2pMuV7qmlFbK1Ko/Pd+93nbFizneuc5KqGluaytcwkcYmb+F3GZ7fy7jhN27N63h/N19Z6sd1/M6tUNpqPG3dfQj/1Gfi1n1ps/9H+ysBsuOVUKgiGRShQoUMrVT/82TEDxtpSoBPyRgAJCKQqCIBRUTIkSJrYqs3VUBEq3VARJMGUv+qp/7MzKX//sx9UKAs/waBrrBUFX+JTuoGj2VBUFQVPYNHuCpEGoiPfqBo9gqCuIgaBk7+DQM8FQaBoGgaBkNf4lcCoK1MQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/82TEJAAAA0gAAAAAVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/82TEfAAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=';
+let stumbleClip=null;
+function stumbleVoice(){
+  if(!soundOn||!AC||!stumbleClip)return;
+  const src=AC.createBufferSource();src.buffer=stumbleClip;src.connect(master);src.onended=()=>src.disconnect();src.start();
+}
 function ensureAudio(){
   if(AC){if(AC.state==='suspended')AC.resume();return;}
   try{
@@ -591,6 +597,9 @@ function ensureAudio(){
     motorFilt=AC.createBiquadFilter();motorFilt.type='lowpass';motorFilt.frequency.value=400;
     motorGain=AC.createGain();motorGain.gain.value=0;
     motorOsc.connect(motorFilt);motorFilt.connect(motorGain);motorGain.connect(master);motorOsc.start();
+    // 乗客の声は埋め込み音声。車内アナウンスの順番を待たずに鳴らす。
+    const bytes=Uint8Array.from(atob(STUMBLE_VOICE),c=>c.charCodeAt(0));
+    AC.decodeAudioData(bytes.buffer).then(buffer=>{stumbleClip=buffer;},()=>{});
   }catch(e){AC=null;}
 }
 function noise(){if(noiseBuf)return noiseBuf;const n=Math.floor(AC.sampleRate*0.8);noiseBuf=AC.createBuffer(1,n,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;return noiseBuf;}
@@ -659,27 +668,39 @@ const DOORS=[7.5,-31.5];/* ホームにかかるドアの位置（列車の中�
 let people=[];
 const SKIN=['#f3d3b5','#e2b48e','#c68e64','#8d5b3d'],SHIRT=['#e4572e','#2e86ab','#f2c14e','#4caf50','#9c6ade','#ff8fab','#3d5a80','#e07a2f'],PANTS=['#2b2d42','#4a4e69','#5c4033','#1d3557'];
 function rnd(a){return a[Math.floor(Math.random()*a.length)];}
-function person(X,kind,door,delay){return{X,kind,door,delay,t:0,ph:Math.random()*6,dir:Math.random()<.5?-1:1,yo:kind==='inside'?-8:0,a:kind==='inside'?0:1,
+function person(X,kind,door,delay,sx){return{X,kind,door,delay,sx,t:0,ph:Math.random()*6,dir:Math.random()<.5?-1:1,yo:kind==='inside'?-8:0,a:kind==='inside'?0:1,
   look:{skin:rnd(SKIN),shirt:rnd(SHIRT),pants:rnd(PANTS),h:Math.random()<.2?0.72:0.9+Math.random()*0.15,bag:Math.random()<.3?1:(Math.random()<.35?2:0),hair:Math.random()<.5?'#2b2118':'#5a3b22'}};}
+function pickStumbler(list,random=Math.random){
+  const candidates=list.filter(p=>p.kind==='wait');
+  return candidates.length&&random()<.08?candidates[Math.floor(random()*candidates.length)]:null;
+}
+function stumblePose(t,calm){
+  const a=Math.max(0,Math.min(1,t/.24,(1.8-t)/.5));return calm?(t<1.3?1:0):a*a*(3-2*a);
+}
+function markPlatformDeparture(k){
+  for(const p of people)if(p.sx===k*SP&&(p.kind==='stumble'||p.kind==='missed'))p.departed=true;
+}
 function spawnWaiting(k){
-  people=people.filter(p=>p.kind==='away');
+  people=people.filter(p=>p.kind==='away'||p.kind==='stumble'||p.kind==='missed');
   const sx=k*SP;
   DOORS.forEach((d,di)=>{const n=Math.floor(Math.random()*3)+(di===0?1:0);
     for(let j=0;j<n;j++){const side=j%2?1:-1,row=Math.floor(j/2);
-      people.push(person(sx+d+side*(11+row*9),'wait',sx+d,0.8+j*0.7));}});
+      people.push(person(sx+d+side*(11+row*9),'wait',sx+d,0.8+j*0.7,sx));}});
+  const p=pickStumbler(people);if(p)p.willTrip=true;
 }
 function spawnAlight(k){
   const sx=k*SP,end=isEnd(k);
   DOORS.forEach(d=>{const n=end?2+Math.floor(Math.random()*2):Math.floor(Math.random()*3);
-    for(let j=0;j<n;j++)people.push(person(sx+d,'inside',sx+d,1.2+j*0.7));
+    for(let j=0;j<n;j++)people.push(person(sx+d,'inside',sx+d,1.2+j*0.7,sx));
     let b=0;people.forEach(p=>{if(p.kind==='wait'&&p.door===sx+d){p.delay=1.5+n*0.7+b*0.7;b++;}});
   });
 }
 function doorBusy(door){return people.some(q=>q.door===door&&(q.kind==='inside'||q.kind==='exit'));}
-function paxBusy(){const c=Math.round(pos/SP)*SP;return people.some(p=>p.kind!=='away'&&Math.abs(p.door-c)<400);}
+function paxBusy(){const c=Math.round(pos/SP)*SP;return people.some(p=>['inside','exit','wait','toDoor','enter'].includes(p.kind)&&p.sx===c);}
 function paxUpdate(dt){
   const open=(state==='stopped'||state==='bell')&&doorAnim>=1,hurry=state==='bell'?2:1;
   for(const p of people){
+    if((p.kind==='stumble'||p.kind==='missed'||p.kind==='away')&&Math.abs(pos-p.sx)>2000){p.kind='gone';continue;}
     if(p.kind==='inside'){
       if(open&&(stopT>p.delay||(state==='bell'&&!people.some(q=>q.door===p.door&&q.kind==='exit')))){p.kind='exit';p.t=0;}
     }else if(p.kind==='exit'){
@@ -687,15 +708,20 @@ function paxUpdate(dt){
       if(p.t>0.4){p.kind='away';p.yo=0;}
     }else if(p.kind==='away'){
       p.X+=p.dir*22*dt;p.ph+=dt*10;
-      const d=Math.abs(p.X-Math.round(p.door/SP)*SP);if(d>285)p.a=Math.max(0,1-(d-285)/30);if(p.a<=0)p.kind='gone';
+      const d=Math.abs(p.X-p.sx);if(d>285)p.a=Math.max(0,1-(d-285)/30);if(p.a<=0)p.kind='gone';
     }else if(p.kind==='wait'){
       if(open&&Math.abs(p.door-pos)<400&&(stopT>p.delay||state==='bell')&&!doorBusy(p.door))p.kind='toDoor';
     }else if(p.kind==='toDoor'){
+      if(p.willTrip){p.willTrip=false;p.kind='stumble';p.t=0;p.yo=0;p.fallDir=Math.sign(p.X-p.door)||1;stumbleVoice();continue;}
       const dx=p.door-p.X,step=24*hurry*dt;p.ph+=dt*10*hurry;
       if(Math.abs(dx)<=step){p.X=p.door;p.kind='enter';p.t=0;}else p.X+=Math.sign(dx)*step;
       p.yo=Math.max(-5,p.yo-dt*6*hurry);
     }else if(p.kind==='enter'){
       p.t+=dt*hurry;p.yo=-5-p.t*10;p.a=Math.max(0,1-p.t/0.35);if(p.t>0.35)p.kind='gone';
+    }else if(p.kind==='stumble'){
+      p.t+=dt;if(p.t>=1.8){p.kind='missed';p.leaveT=0;}
+    }else if(p.kind==='missed'&&p.departed){
+      p.leaveT+=dt;if(p.leaveT>2.5){p.kind='away';p.dir=p.fallDir;p.ph=0;}
     }
   }
   if(people.some(p=>p.kind==='gone'))people=people.filter(p=>p.kind!=='gone');
@@ -705,6 +731,8 @@ function drawPeople(camX){
     const x=p.X-camX;if(x<-30||x>bw+30||p.a<=0)continue;
     const L=p.look,h=L.h,y=ty-5+p.yo,walking=p.kind==='toDoor'||p.kind==='away';
     const sw=walking?Math.sin(p.ph)*2.2*h:0,dir=p.kind==='away'?p.dir:(p.kind==='toDoor'?(Math.sign(p.door-p.X)||1):1);
+    ctx.save();
+    if(p.kind==='stumble'){ctx.translate(x,y);ctx.rotate(p.fallDir*Math.PI*.44*stumblePose(p.t,reduced));ctx.translate(-x,-y);}
     ctx.globalAlpha=p.a;
     if(L.bag===1){ctx.fillStyle='#5b6b8c';rr(x-dir*7*h-2.5*h,y-8*h,5*h,7*h,1.2);ctx.fill();
       ctx.strokeStyle='#3b4660';ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(x-dir*7*h,y-8*h);ctx.lineTo(x-dir*4*h,y-12*h);ctx.stroke();}
@@ -713,12 +741,17 @@ function drawPeople(camX){
     ctx.fillStyle=L.shirt;rr(x-3.2*h,y-18*h,6.4*h,10*h,2*h);ctx.fill();
     ctx.fillStyle=L.skin;ctx.beginPath();ctx.arc(x,y-21.5*h,3.2*h,0,7);ctx.fill();
     ctx.fillStyle=L.hair;ctx.beginPath();ctx.arc(x,y-22.2*h,3.3*h,Math.PI,0);ctx.fill();
-    ctx.globalAlpha=1;
+    if(p.kind==='missed'){
+      const side=p.fallDir,wave=p.departed&&!reduced?Math.sin(p.leaveT*9)*1.5:0;
+      ctx.strokeStyle=L.skin;ctx.lineWidth=2*h;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x+side*3*h,y-15*h);
+      ctx.lineTo(x+side*7*h,y-19*h);ctx.lineTo(x+side*(p.departed?8+wave:4)*h,y-(p.departed?25:22)*h);ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 function startRunning(){
   const k=Math.round(pos/SP),tg=nextStop(k),nx=st(tg),d=dest(k),fn=fastName();
-  depLog[k]=delay;target=tg;announced=false;state='running';v=Math.max(v,40);spawnWaiting(target);
+  depLog[k]=delay;target=tg;announced=false;state='running';v=Math.max(v,40);markPlatformDeparture(k);spawnWaiting(target);
   if(isEnd(k)){
     carChime();
     announce('きょうも しんかんせんを ごりよう くださいまして ありがとうございます。この でんしゃは、'+(fn?fn+'ごう、':line.kana+'しんかんせん、')+d[1]+'ゆき です。つぎは、'+nx[1]+'に とまります。',
