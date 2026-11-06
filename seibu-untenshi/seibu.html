@@ -624,6 +624,7 @@ const CITY={'池袋':1,'西武新宿':1,'高田馬場':1,'練馬':0.8,'石神井
 const TUNNEL={'吾野|西吾野':0.4,'正丸|西吾野':0.5,'正丸|芦ヶ久保':0.85,'横瀬|芦ヶ久保':0.3};
 const RIVER={'仏子|元加治':900,'新狭山|狭山市':900,'武蔵横手|高麗':420};
 const UG={'小竹向原':1,'新桜台':1};
+const UG_PORTAL=.55; // 地下駅から地上側へ進むときのトンネル出口
 /* 高架の主な区間。境界のキロ・勾配はゲーム用の近似。東村山は下りのみ（2026年11月確認）。 */
 const ELEVATED={
   ikebukuro:{from:4.75,to:12.2},
@@ -878,6 +879,15 @@ function elevationAt(t,x){
     const f=Math.max(0,Math.min(1,(x-edge+500)/1000)),p=f*f*(3-2*f);return a+(b-a)*p;}
   return elevationRaw(t,x);
 }
+function undergroundDepth(t,x){
+  const k=t.kAt(x),start=UG[t.st(k)[0]],end=UG[t.st(k+1)[0]];
+  if(!start&&!end)return 0;
+  if(start&&end)return 1;
+  const fraction=(x-t.X(k))/(t.X(k+1)-t.X(k));
+  const towardSurface=start?fraction:1-fraction;
+  const depth=Math.max(0,Math.min(1,(UG_PORTAL-towardSurface)/.28));
+  return depth*depth*(3-2*depth);
+}
 
 /* ちず用の いち（えきデータから つくる） */
 const POS={};Object.values(BASE).forEach(l=>l.st.forEach(x=>{POS[x[0]]=[x[5],x[6]];}));
@@ -938,7 +948,7 @@ function feat(k){
   f={t0:-1e9,t1:-1e9,r0:-1e9,r1:-1e9,ug:false,cr:[]};
   const T=TUNNEL[pk],p=UG[st(k)[0]],q=UG[st(k+1)[0]],U=p||q;
   if(U){/* ちかの くかん（ちかの えきは ホームごと トンネルの なか） */
-    f.ug=true;f.t0=p?b-900:b+g*0.45;f.t1=q?e+900:b+g*0.55;}
+    f.ug=true;f.t0=p?b-900:b+g*(1-UG_PORTAL);f.t1=q?e+900:b+g*UG_PORTAL;}
   else if(T){f.t0=b+g*(0.5-T/2);f.t1=b+g*(0.5+T/2);}
   const R=RIVER[pk];if(R){f.r0=b+g*0.42;f.r1=b+g*0.42+Math.min(g*0.3,R);}
   if(!U&&!(T>=0.8)){/* ふみきり：まちの くかんには だいたい ある */
@@ -1446,9 +1456,11 @@ function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r)
 /* えきの かんばん：えきばんごう・えきめい・よみ・ローマじ・となりの えき */
 function drawSign(c,k){
   const n=st(k),p=st(k-1),q=st(k+1),nc=numColor(n[3]);
-  const T=bh-80-242,W=270;
-  ctx.fillStyle='#8996aa';const postY=Math.min(T+88,ty-142),postH=Math.abs(T+88-(ty-142))+2;
-  ctx.fillRect(c-86,postY,5,postH);ctx.fillRect(c+81,postY,5,postH);
+  const T=UG[n[0]]?ty-UG_CEILING+8:bh-80-242,W=270;
+  if(!UG[n[0]]){
+    ctx.fillStyle='#8996aa';const postY=Math.min(T+88,ty-142),postH=Math.abs(T+88-(ty-142))+2;
+    ctx.fillRect(c-86,postY,5,postH);ctx.fillRect(c+81,postY,5,postH);
+  }
   ctx.fillStyle='#ffffff';ctx.strokeStyle='#14213d';ctx.lineWidth=3;rr(c-W/2,T,W,88,10);ctx.fill();ctx.stroke();
   /* えきばんごう（しかくの なかに ろせんの もじと ばんごう） */
   if(n[3]){const bx=c-W/2+12,by=T+14;
@@ -1483,11 +1495,12 @@ function drawCrossingBack(x,near,t){
   if(near){ctx.moveTo(px,ty-30);ctx.lineTo(px-44,ty-30);}else{ctx.moveTo(px,ty-30);ctx.lineTo(px+4,ty-74);}ctx.stroke();
 }
 
-const RISE=54;
-function railY(worldX){return bh-80-RISE*elevationAt(trip,worldX);}
+const RISE=54,DEPTH=198,UG_CEILING=180;
+let groundY=0;
+function railY(worldX){return groundY-RISE*elevationAt(trip,worldX)+DEPTH*undergroundDepth(trip,worldX);}
 function drawViaduct(camX,t){
-  const ground=bh-80,points=[];
-  for(let x=0;x<bw+12;x+=12){const h=elevationAt(trip,camX+x);points.push({x,h,y:ground-RISE*h,g:ground+14+44*h});}
+  const ground=groundY,points=[];
+  for(let x=0;x<bw+12;x+=12){const h=elevationAt(trip,camX+x);points.push({x,h,y:railY(camX+x),g:ground+14+44*h});}
   /* 連続した輪郭を一度で塗り、細い白い継ぎ目を作らない。 */
   ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y+16):ctx.moveTo(p.x,p.y+16));
   for(let i=points.length-1;i>=0;i--){const p=points[i];ctx.lineTo(p.x,Math.max(p.y+16,p.g));}ctx.closePath();
@@ -1509,19 +1522,46 @@ function drawViaduct(camX,t){
   ctx.strokeStyle='#7b8494';ctx.lineWidth=3;ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
 }
 
+function drawUnderground(camX,k0,k1){
+  for(let k=k0;k<=k1;k++){
+    const f=feat(k);
+    if(!f.ug||f.t1<camX-16||f.t0>camX+bw+16)continue;
+    // 区間の重なりを駅の中心で切り、地下壁の継ぎ目を作らない。
+    const start=Math.max(f.t0,X(k),camX-16),end=Math.min(f.t1,X(k+1),camX+bw+16);
+    if(end<=start)continue;
+    const points=[];
+    for(let x=start;x<end;x+=12)points.push([x-camX,railY(x)]);
+    points.push([end-camX,railY(end)]);
+    const fillBand=(top,bottom,color)=>{
+      ctx.beginPath();
+      points.forEach(([x,y],i)=>i?ctx.lineTo(x,top(y)):ctx.moveTo(x,top(y)));
+      for(let i=points.length-1;i>=0;i--){const [x,y]=points[i];ctx.lineTo(x,bottom(y));}
+      ctx.closePath();ctx.fillStyle=color;ctx.fill();
+    };
+    const ceiling=y=>y-UG_CEILING;
+    fillBand(y=>Math.min(groundY,ceiling(y)-6),y=>y+20,'#75685c');
+    fillBand(ceiling,y=>y+16,'#293340');
+    fillBand(ceiling,y=>ceiling(y)+8,'#65717d');
+    fillBand(y=>y-45,y=>y+14,'#394551');
+    for(let x=Math.ceil(start/120)*120;x<end;x+=120){
+      const y=railY(x);
+      ctx.fillStyle='#44515e';ctx.fillRect(x-camX,ceiling(y)+9,4,UG_CEILING+4);
+      ctx.fillStyle='#ffe7a8';ctx.fillRect(x-camX-10,ceiling(y)+15,24,4);
+    }
+    for(const portal of [f.t0,f.t1]){
+      if(portal<X(k)||portal>X(k+1)||portal<camX-16||portal>camX+bw+16)continue;
+      ctx.fillStyle='#a4aeb9';ctx.fillRect(portal-camX-5,ceiling(railY(portal))-5,10,UG_CEILING+15);
+    }
+  }
+}
+
 function drawWorld(camX,t){
   const k0=kAt(camX)-1,k1=kAt(camX+bw)+1;
   ctx.strokeStyle='#4b5563';ctx.lineWidth=1.4;ctx.beginPath();for(let x=0;x<=bw+24;x+=24){const y=railY(camX+x)-100;x?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
   for(let k=k0;k<=k1;k++){
     const f=feat(k),x0=f.t0-camX,x1=f.t1-camX;
     if(x1<-200||x0>bw+200)continue;
-    if(f.ug){/* ちかの トンネル */
-      ctx.fillStyle='#8b8577';ctx.fillRect(x0,0,x1-x0,ty+6);
-      ctx.fillStyle='#2b2f3a';ctx.fillRect(x0+(f.t0<X(k)?0:12),ty-150,x1-x0-(f.t0<X(k)?0:12)-(f.t1>X(k+1)?0:12),156);
-      ctx.fillStyle='#ffe7a8';for(let X0=Math.ceil(f.t0/120)*120;X0<f.t1;X0+=120)ctx.fillRect(X0-camX-6,ty-140,12,3);
-      if(f.t0>=X(k)){ctx.fillStyle='#b8bec8';ctx.fillRect(x0-12,ty-160,14,166);}
-      if(f.t1<=X(k+1)){ctx.fillStyle='#b8bec8';ctx.fillRect(x1-2,ty-160,14,166);}
-      continue;}
+    if(f.ug)continue;
     ctx.fillStyle='#3f8f4e';ctx.beginPath();ctx.moveTo(x0-80,ty+6);
     ctx.bezierCurveTo(x0-20,ty-200,x0+120,ty-250,(x0+x1)/2,ty-250);
     ctx.bezierCurveTo(x1-120,ty-250,x1+20,ty-200,x1+80,ty+6);ctx.closePath();ctx.fill();
@@ -1534,6 +1574,7 @@ function drawWorld(camX,t){
   for(let k=k0;k<=k1;k++){const f=feat(k);f.cr.forEach(x=>{const c=x-camX;if(c<-80||c>bw+80)return;drawCrossingBack(c,Math.abs(x-pos)<1600||Math.abs(x-pos-FRONT)<1600,t);});}
   for(let k=k0;k<=k1;k++){
     const c=X(k)-camX;if(c<-420||c>bw+420)continue;
+    if(UG[st(k)[0]])continue;
     const baseTy=ty;ty=railY(X(k));
     ctx.fillStyle='#cfd6df';ctx.fillRect(c-310,ty-30,620,24);
     ctx.fillStyle='#9aa6b8';for(let x=-300;x<=300;x+=100)ctx.fillRect(c+x-3,ty-130,6,104);
@@ -1556,7 +1597,15 @@ function drawWorld(camX,t){
     ctx.fillStyle='#8792a3';for(let X0=f.r0+40;X0<f.r1;X0+=180)ctx.fillRect(X0-camX-9,ty+12,18,bh-ty);
     ctx.fillStyle='#55606f';ctx.fillRect(x0,ty+2,x1-x0,12);
   }
+  drawUnderground(camX,k0,k1);
   drawViaduct(camX,t);
+  for(let k=k0;k<=k1;k++){
+    const c=X(k)-camX;if(!UG[st(k)[0]]||c<-420||c>bw+420)continue;
+    const savedTy=ty;ty=railY(X(k));
+    ctx.fillStyle='#566573';ctx.fillRect(c-310,ty-UG_CEILING+8,620,UG_CEILING-16);
+    ctx.fillStyle='#8794a0';ctx.fillRect(c-310,ty-55,620,5);
+    drawSign(c,k);ty=savedTy;
+  }
   /* ふみきりの みち（てまえ） */
   for(let k=k0;k<=k1;k++){feat(k).cr.forEach(x=>{const c=x-camX;if(c<-80||c>bw+80)return;ctx.fillStyle='#7d8590';ctx.beginPath();ctx.moveTo(c-30,ty+2);ctx.lineTo(c+30,ty+2);ctx.lineTo(c+52,bh);ctx.lineTo(c-52,bh);ctx.closePath();ctx.fill();
     ctx.fillStyle='#f1f1f1';ctx.fillRect(c-1,ty+12,2,bh-ty);ctx.fillStyle='#55606f';ctx.fillRect(c-30,ty+1,60,4);});}
@@ -1720,7 +1769,7 @@ function drawNearPlatform(camX,t){
     ctx.fillStyle='#ffffff';DOORS.forEach(d=>{ctx.fillRect(c+d-11,y-7,4,1.6);ctx.fillRect(c+d+7,y-7,4,1.6);});
   }
   /* ふみきり（てまえの けいほうき） */
-  const savedTy=ty;ty=bh-80;
+  const savedTy=ty;ty=groundY;
   for(let k=k0;k<=k1;k++)feat(k).cr.forEach(x=>{const c=x-camX-26;if(c<-40||c>bw+40)return;const near=Math.abs(x-pos)<1600||Math.abs(x-pos-FRONT)<1600,on=near&&!reduced?Math.floor(t*2.4)%2:-1;
     ctx.fillStyle='#3a3f47';ctx.fillRect(c-1.5,ty-50,3,62);
     [-5,5].forEach((o,i)=>{ctx.fillStyle='#22262c';ctx.beginPath();ctx.arc(c+o,ty-44,3.6,0,7);ctx.fill();ctx.fillStyle=(near&&(reduced||on!==i))?'#ff2a2a':'#5a1d1d';ctx.beginPath();ctx.arc(c+o,ty-44,2.5,0,7);ctx.fill();});});
@@ -1753,7 +1802,9 @@ function frame(now){
   update(dt);
   ctx.setTransform(DPR*s,0,0,DPR*s,0,0);
   const camX=pos-bw/2;
-  ty=bh-80;drawBackground(camX,t);drawWorld(camX,t);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.32*night)+')';ctx.fillRect(0,0,bw,bh);}
+  // 地下ではカメラも下げ、車両とホームが画面内に収まるようにする。
+  groundY=bh-80-(DEPTH-22)*undergroundDepth(trip,pos);
+  ty=groundY;drawBackground(camX,t);drawWorld(camX,t);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.32*night)+')';ctx.fillRect(0,0,bw,bh);}
   ty=railY(pos);drawTrain(t);drawNearPlatform(camX,t);drawPeople(camX);drawDriverChange(camX);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.12*night)+')';ctx.fillRect(0,0,bw,bh);}drawMap(t);
   $('driverNotice').hidden=!driverChange;
   syncUI();

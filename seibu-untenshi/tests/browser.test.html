@@ -17,6 +17,8 @@ async function mount(width,height){
     async audio(){await clipsReady;return {ah:clipBuffers.ah?.duration,handover:clipBuffers.handover?.duration};},
     nerima(){const R=ROUTES.find(r=>r.id==='yurakucho');setTrip(new Trip(R,stIndex(R,'新桜台'),stIndex(R,'中村橋'),600,0,'6000'),false);},
     levelAt(offset){return elevationAt(trip,pos+offset);},
+    undergroundTrip(){const R=ROUTES.find(r=>r.id==='yurakucho');setTrip(new Trip(R,stIndex(R,'練馬'),stIndex(R,'小竹向原'),600,0,'6000'),false);},
+    trackHeight(){return groundY-railY(pos);},
     hoya(){const R=ROUTES[0];setTrip(new Trip(R,stIndex(R,'大泉学園'),stIndex(R,'ひばりヶ丘'),600,0,'40000'),false);},
     force(){people.forEach(p=>p.willTrip=false);const p=pickStumbler(people,()=>0);if(!p)throw Error('No candidate');p.willTrip=true;return p;},
     step(seconds){for(let i=0;i<Math.ceil(seconds/.05);i++){this.tick=(this.tick||1000)+50;frame(this.tick);}},
@@ -35,6 +37,26 @@ document.querySelector('#run').onclick=async()=>{
     const sizes=params.has('preview')?[[1024,768]]:[[400,844],[1024,768]];
     for(const [width,height] of sizes){
       const {w,d,qa,errors}=await mount(width,height);check(w.innerWidth===width,'画面幅 '+width);
+      if(['underground','shin-sakuradai'].includes(params.get('preview'))){
+        qa.undergroundTrip();qa.step(.05);
+        check(qa.trackHeight()>0,'練馬の線路は地上より高い');
+        for(const station of ['新桜台','小竹向原']){
+          qa.step(2); // 到着時はホームでドアが開くまで待つ。
+          pointer(w,d,'pointerdown');qa.step(3);
+          let height=qa.trackHeight(),maxStep=0;
+          for(let i=0;i<1800&&qa.state.state!=='stopped';i++){
+            qa.step(.05);
+            maxStep=Math.max(maxStep,Math.abs(height-qa.trackHeight()));height=qa.trackHeight();
+          }
+          pointer(w,d,'pointerup');
+          check(qa.state.state==='stopped'&&d.querySelector('#bannerLabel').textContent.includes(station),station+'に到着する');
+          check(qa.trackHeight()<-100&&maxStep<7,station+'まで段差なく地下を走る');
+          if(station==='新桜台'&&params.get('preview')==='shin-sakuradai')break;
+        }
+        check(errors.length===0,'実行時エラーなし');
+        result.textContent+='\n地下区間の確認完了';
+        return;
+      }
       if(params.get('preview')==='nerima'){
         qa.nerima();pointer(w,d,'pointerdown');
         qa.step(3);

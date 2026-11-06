@@ -8,8 +8,8 @@ const html = fs.readFileSync(file, 'utf8');
 const js = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const cut = (from, to) => js.slice(js.indexOf(from), js.indexOf(to));
 const lib = new Function(cut('/* ===== データ', '/* ちず用の いち') +
-  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,restoreSayamaSelection,NUMC,SCENE,TUNNEL,RIVER,UG,CITY,ELEVATED,elevationSection,elevationLevel,elevationAt};')();
-const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, restoreSayamaSelection, NUMC, SCENE, TUNNEL, RIVER, UG, CITY, ELEVATED, elevationSection, elevationLevel, elevationAt } = lib;
+  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,restoreSayamaSelection,NUMC,SCENE,TUNNEL,RIVER,UG,UG_PORTAL,CITY,ELEVATED,elevationSection,elevationLevel,elevationAt,undergroundDepth};')();
+const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, restoreSayamaSelection, NUMC, SCENE, TUNNEL, RIVER, UG, UG_PORTAL, CITY, ELEVATED, elevationSection, elevationLevel, elevationAt, undergroundDepth } = lib;
 
 let pass = 0, fail = 0;
 function check(name, ok, info) { if (ok) pass++; else { fail++; console.log('NG', name, info || ''); } }
@@ -161,6 +161,16 @@ check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 
     }
     check('練馬の通過と折り返しで高さが飛ばない '+from+'→'+to,smooth);
   }
+  const subway=train('yurakucho','練馬','小竹向原');
+  check('練馬は地上より上', undergroundDepth(subway,0)===0&&elevationAt(subway,0)===1);
+  for(const k of [1,2,3])check('地下ホームの全体が同じ深さ '+k,[-310,0,310].every(dx=>undergroundDepth(subway,subway.X(k)+dx)===1));
+  let previous=0,continuous=true;
+  for(let x=10;x<=subway._D;x+=10){
+    const depth=undergroundDepth(subway,x);
+    if(Math.abs(previous-depth)>.02||depth*elevationAt(subway,x)>1e-8)continuous=false;
+    previous=depth;
+  }
+  check('地下と高架を段差なく往復',continuous);
   for (const trip of [t,down,up,branch,train('shinjuku','久米川','東村山')]) {
     let last=elevationAt(trip,-1000);
     for(let x=-990;x<=trip._D+1000;x+=10){const h=elevationAt(trip,x);
@@ -171,10 +181,10 @@ check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 
   }
   // 本番と同じ踏切生成処理を実行して、高架・勾配上には作られないことを確認。
   const features = cut('function pairKey(k)', '/* ---------- 保存');
-  const makeFeatures = new Function('trip','elevationAt','TUNNEL','UG','RIVER',
+  const makeFeatures = new Function('trip','elevationAt','TUNNEL','UG','UG_PORTAL','RIVER',
     'const st=k=>trip.st(k),idx=k=>trip.idx(k),X=k=>trip.X(k),kAt=x=>trip.kAt(x),kNear=x=>Math.round(x);const hash=i=>.5;'+features+';return feat;');
   let groundCrossings=0;
-  for(const trip of [t,down,up,branch]){const feature=makeFeatures(trip,elevationAt,TUNNEL,UG,RIVER);
+  for(const trip of [t,down,up,branch,subway]){const feature=makeFeatures(trip,elevationAt,TUNNEL,UG,UG_PORTAL,RIVER);
     for(let k=0;k<trip.len*4;k++)for(const x of feature(k).cr){groundCrossings++;check('踏切は必ず地上',elevationAt(trip,x)===0);}}
   check('地上の踏切は残る',groundCrossings>0);
 }
