@@ -16,6 +16,7 @@ async function mount(width,height){
     get state(){return {state,pos,target,doorAnim,people,busy:paxBusy(),elevation:elevationAt(trip,pos),change:driverChange,waiting:waitingDriver,remaining:X(target)-pos,front:pos+FRONT,clipCalls};},
     async audio(){await clipsReady;return {ah:clipBuffers.ah?.duration,handover:clipBuffers.handover?.duration};},
     nerima(){const R=ROUTES.find(r=>r.id==='yurakucho');setTrip(new Trip(R,stIndex(R,'新桜台'),stIndex(R,'中村橋'),600,0,'6000'),false);},
+    toshima(from,to){const R=ROUTES.find(r=>r.id==='toshima');setTrip(new Trip(R,stIndex(R,from),stIndex(R,to),600,0,'30000'),false);},
     levelAt(offset){return elevationAt(trip,pos+offset);},
     undergroundTrip(){const R=ROUTES.find(r=>r.id==='yurakucho');setTrip(new Trip(R,stIndex(R,'練馬'),stIndex(R,'小竹向原'),600,0,'6000'),false);},
     trackHeight(){return groundY-railY(pos);},
@@ -37,6 +38,25 @@ document.querySelector('#run').onclick=async()=>{
     const sizes=params.has('preview')?[[1024,768]]:[[400,844],[1024,768]];
     for(const [width,height] of sizes){
       const {w,d,qa,errors}=await mount(width,height);check(w.innerWidth===width,'画面幅 '+width);
+      if(params.get('preview')==='toshima'){
+        for(const [from,to,station,level] of [['豊島園','桜台','練馬',1],['練馬','豊島園','豊島園',0]]){
+          qa.toshima(from,to);pointer(w,d,'pointerdown');qa.step(3);
+          let previous=qa.levelAt(0),maxStep=0,sawSlope=false;
+          for(let i=0;i<1800&&qa.state.state!=='stopped';i++){
+            qa.step(.05);
+            const next=qa.levelAt(0);
+            maxStep=Math.max(maxStep,Math.abs(previous-next));previous=next;
+            sawSlope ||= next>0&&next<1;
+          }
+          pointer(w,d,'pointerup');
+          check(sawSlope&&maxStep<.05,from+'から'+station+'まで高さが滑らかに変わる');
+          check(qa.state.state==='stopped'&&d.querySelector('#bannerLabel').textContent.includes(station)
+            &&[-310,0,310].every(dx=>qa.levelAt(dx)===level),station+'のホームと同じ高さで停車する');
+        }
+        check(errors.length===0,'実行時エラーなし');
+        result.textContent+='\n豊島線の両方向を確認完了';
+        return;
+      }
       if(['underground','shin-sakuradai'].includes(params.get('preview'))){
         qa.undergroundTrip();qa.step(.05);
         check(qa.trackHeight()>0,'練馬の線路は地上より高い');

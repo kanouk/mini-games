@@ -630,6 +630,8 @@ const ELEVATED={
   ikebukuro:{from:4.75,to:12.2},
   // 練馬を0kmとし、新桜台からのトンネル出口（約0.63km）から高架へつなぐ。
   yurakucho:{from:-.42,to:.63,ramp:.42},
+  // 練馬のホームを出た先で下り、豊島園の手前で地上に着く。
+  toshima:{from:-.4,to:.65,ramp:.4},
   shinjuku:{from:24.85,to:27.15,dir:1}
 };
 function elevationSection(R,a,b){
@@ -1457,11 +1459,18 @@ function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r)
 function drawSign(c,k){
   const n=st(k),p=st(k-1),q=st(k+1),nc=numColor(n[3]);
   const T=UG[n[0]]?ty-UG_CEILING+8:bh-80-242,W=270;
+  const toshima=n[0]==='豊島園',ink=toshima?'#fff1d7':'#14213d';
   if(!UG[n[0]]){
-    ctx.fillStyle='#8996aa';const postY=Math.min(T+88,ty-142),postH=Math.abs(T+88-(ty-142))+2;
+    ctx.fillStyle=toshima?'#782b38':'#8996aa';const postY=Math.min(T+88,ty-142),postH=Math.abs(T+88-(ty-142))+2;
     ctx.fillRect(c-86,postY,5,postH);ctx.fillRect(c+81,postY,5,postH);
   }
-  ctx.fillStyle='#ffffff';ctx.strokeStyle='#14213d';ctx.lineWidth=3;rr(c-W/2,T,W,88,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=toshima?'#722733':'#ffffff';ctx.strokeStyle=toshima?'#4a1d26':'#14213d';
+  ctx.lineWidth=3;rr(c-W/2,T,W,88,10);ctx.fill();ctx.stroke();
+  if(toshima){
+    ctx.strokeStyle='#d4ad68';ctx.lineWidth=1.4;rr(c-W/2+5,T+5,W-10,78,7);ctx.stroke();
+    ctx.fillStyle='#e0b976';ctx.font='800 8px '+FONT;ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText('スタジオツアー東京',c+W/2-13,T+15);
+  }
   /* えきばんごう（しかくの なかに ろせんの もじと ばんごう） */
   if(n[3]){const bx=c-W/2+12,by=T+14;
     /* 路線色の外形を先に塗り、白は番号欄だけに入れる。上端に白い隙間を残さない。 */
@@ -1470,14 +1479,60 @@ function drawSign(c,k){
     ctx.fillStyle='#fff';rr(bx+1.5,by+1.5,31,31,4.5);ctx.fill();ctx.restore();
     ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='800 9px '+FONT;ctx.fillText(n[3].replace(/\d+/,''),bx+17,by+8);
     ctx.fillStyle='#14213d';ctx.font='800 15px '+FONT;ctx.fillText(n[3].replace(/^[A-Z]+/,''),bx+17,by+24);}
-  ctx.fillStyle='#14213d';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillStyle=ink;ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.font='800 11px '+FONT;ctx.fillText(n[1],c+10,T+14,W-80);
   ctx.font='800 28px '+FONT;ctx.fillText(n[0],c+10,T+35,W-80);
-  ctx.font='500 9px '+FONT;ctx.fillText(n[2],c+10,T+54,W-80);
-  ctx.fillStyle=nc;ctx.fillRect(c-W/2+3,T+62,W-6,4);
-  ctx.fillStyle='#14213d';ctx.font='500 10px '+FONT;const sx=W/2-14,ny=T+76;
+  ctx.font=toshima?'bold 10px Georgia,serif':'500 9px '+FONT;
+  ctx.fillText(toshima?n[2].toUpperCase():n[2],c+10,T+54,W-80);
+  ctx.fillStyle=toshima?'#d4ad68':nc;
+  const inset=toshima?7:3;ctx.fillRect(c-W/2+inset,T+62,W-2*inset,toshima?2:4);
+  ctx.fillStyle=ink;ctx.font='500 10px '+FONT;const sx=W/2-14,ny=T+76;
   if(idx(k-1)===idx(k+1)){/* しゅうてん・しはつえき：となりの えきは 1つだけ。でんしゃは みぎに すすむ */ctx.textAlign='right';ctx.fillText(q[0]+'  '+q[1]+' →',c+sx,ny,W-28);}
   else{ctx.textAlign='left';ctx.fillText('← '+p[0],c-sx,ny,W/2-20);ctx.textAlign='right';ctx.fillText(q[0]+' →',c+sx,ny,W/2-20);}
+}
+
+// 西武鉄道の豊島園駅リニューアルで使われた赤い柱、照明、展示物をゲーム向けに描く。
+// https://www.seiburailway.jp/railways/magicrailway/
+function drawToshimaCanopy(c){
+  ctx.fillStyle=tint('#e4d5b8');ctx.fillRect(c-318,ty-142,636,18);
+  ctx.fillStyle=tint('#7b2939');ctx.fillRect(c-330,ty-146,660,8);ctx.fillRect(c-330,ty-127,660,5);
+  ctx.strokeStyle=tint('#8e3645');ctx.lineWidth=4;ctx.beginPath();
+  for(let dx=-288;dx<=288;dx+=96){
+    const x=c+dx;
+    ctx.fillStyle=tint('#7b2939');ctx.fillRect(x-5,ty-124,10,114);
+    ctx.fillStyle=tint('#a54857');ctx.fillRect(x-3,ty-122,2,109);
+    ctx.moveTo(x-28,ty-124);ctx.lineTo(x,ty-105);ctx.lineTo(x+28,ty-124);
+    if(dx<288){
+      ctx.fillStyle='#fff0c6';ctx.fillRect(x+26,ty-123,44,3);
+    }
+  }
+  ctx.stroke();
+}
+
+function drawToshimaProps(c,y){
+  const booth=c-193,top=y-76;
+  ctx.fillStyle='#5a222b';rr(booth-18,top,36,84,5);ctx.fill();
+  ctx.fillStyle='#a43f48';ctx.fillRect(booth-16,top+13,32,69);
+  ctx.fillStyle='#f6dfb3';ctx.font='bold 5px Georgia,serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('TELEPHONE',booth,top+9,30);
+  ctx.fillStyle='#ecd4a3';
+  for(let row=0;row<5;row++)for(let col=0;col<3;col++)ctx.fillRect(booth-12+col*8,top+19+row*9,6,7);
+  ctx.fillStyle='#d4ad68';ctx.fillRect(booth+10,top+63,4,2);
+
+  const bench=c+153;
+  ctx.fillStyle='#432c31';ctx.fillRect(bench-22,y-12,4,20);ctx.fillRect(bench+18,y-12,4,20);
+  ctx.fillStyle='#963d47';ctx.fillRect(bench-27,y-22,54,5);ctx.fillRect(bench-27,y-15,54,5);
+  ctx.fillStyle='#b75a58';ctx.fillRect(bench-28,y-6,56,4);
+
+  const model=c+249;
+  ctx.fillStyle='#484347';ctx.fillRect(model-35,y+3,70,5);
+  ctx.fillStyle='#752e37';rr(model-29,y-18,47,15,5);ctx.fill();ctx.fillRect(model+10,y-27,18,24);
+  ctx.fillStyle='#36252b';ctx.fillRect(model-24,y-26,7,9);ctx.fillRect(model+7,y-29,24,4);
+  ctx.fillStyle='#f5cf8c';ctx.fillRect(model+15,y-23,8,8);ctx.fillRect(model-31,y-14,5,4);
+  for(const dx of [-20,-4,13,24]){
+    ctx.fillStyle='#2c262b';ctx.beginPath();ctx.arc(model+dx,y-2,5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#d2a369';ctx.beginPath();ctx.arc(model+dx,y-2,2,0,Math.PI*2);ctx.fill();
+  }
 }
 function numColor(num){const m=num&&num.match(/^[A-Z]+/);return (m&&NUMC[m[0]])||'#1f5fbf';}
 
@@ -1577,8 +1632,11 @@ function drawWorld(camX,t){
     if(UG[st(k)[0]])continue;
     const baseTy=ty;ty=railY(X(k));
     ctx.fillStyle='#cfd6df';ctx.fillRect(c-310,ty-30,620,24);
-    ctx.fillStyle='#9aa6b8';for(let x=-300;x<=300;x+=100)ctx.fillRect(c+x-3,ty-130,6,104);
-    ctx.fillStyle='#eef1f5';ctx.fillRect(c-330,ty-142,660,14);ctx.fillStyle='#8996aa';ctx.fillRect(c-330,ty-130,660,3);
+    if(st(k)[0]==='豊島園')drawToshimaCanopy(c);
+    else{
+      ctx.fillStyle='#9aa6b8';for(let x=-300;x<=300;x+=100)ctx.fillRect(c+x-3,ty-130,6,104);
+      ctx.fillStyle='#eef1f5';ctx.fillRect(c-330,ty-142,660,14);ctx.fillStyle='#8996aa';ctx.fillRect(c-330,ty-130,660,3);
+    }
     drawSign(c,k);
     ty=baseTy;
   }
@@ -1767,6 +1825,7 @@ function drawNearPlatform(camX,t){
     ctx.fillStyle='#facc15';ctx.fillRect(c-310,y-10,620,3);
     ctx.fillStyle='#98a3b4';ctx.fillRect(c-310,y-4,620,22);
     ctx.fillStyle='#ffffff';DOORS.forEach(d=>{ctx.fillRect(c+d-11,y-7,4,1.6);ctx.fillRect(c+d+7,y-7,4,1.6);});
+    if(st(k)[0]==='豊島園')drawToshimaProps(c,y);
   }
   /* ふみきり（てまえの けいほうき） */
   const savedTy=ty;ty=groundY;

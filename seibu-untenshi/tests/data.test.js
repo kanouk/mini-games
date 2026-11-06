@@ -161,6 +161,22 @@ check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 
     }
     check('練馬の通過と折り返しで高さが飛ばない '+from+'→'+to,smooth);
   }
+  const toshimaBranch=train('toshima','練馬','豊島園');
+  const toshimaThrough=train('toshima','豊島園','桜台');
+  for(const trip of [toshimaBranch,toshimaThrough]){
+    for(let k=0;k<=trip.len*2;k++){
+      const station=trip.st(k)[0];
+      const expected=station==='豊島園'?0:1;
+      check('豊島線のホーム全体が水平 '+station,[-310,0,310].every(dx=>elevationAt(trip,trip.X(k)+dx)===expected));
+    }
+    let previous=elevationAt(trip,0),smooth=true;
+    for(let x=10;x<=trip._D;x+=10){
+      const level=elevationAt(trip,x);
+      if(Math.abs(previous-level)>.02)smooth=false;
+      previous=level;
+    }
+    check('豊島線の往復で線路の高さが飛ばない',smooth);
+  }
   const subway=train('yurakucho','練馬','小竹向原');
   check('練馬は地上より上', undergroundDepth(subway,0)===0&&elevationAt(subway,0)===1);
   for(const k of [1,2,3])check('地下ホームの全体が同じ深さ '+k,[-310,0,310].every(dx=>undergroundDepth(subway,subway.X(k)+dx)===1));
@@ -184,7 +200,7 @@ check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 
   const makeFeatures = new Function('trip','elevationAt','TUNNEL','UG','UG_PORTAL','RIVER',
     'const st=k=>trip.st(k),idx=k=>trip.idx(k),X=k=>trip.X(k),kAt=x=>trip.kAt(x),kNear=x=>Math.round(x);const hash=i=>.5;'+features+';return feat;');
   let groundCrossings=0;
-  for(const trip of [t,down,up,branch,subway]){const feature=makeFeatures(trip,elevationAt,TUNNEL,UG,UG_PORTAL,RIVER);
+  for(const trip of [t,down,up,branch,subway,toshimaThrough]){const feature=makeFeatures(trip,elevationAt,TUNNEL,UG,UG_PORTAL,RIVER);
     for(let k=0;k<trip.len*4;k++)for(const x of feature(k).cr){groundCrossings++;check('踏切は必ず地上',elevationAt(trip,x)===0);}}
   check('地上の踏切は残る',groundCrossings>0);
 }
