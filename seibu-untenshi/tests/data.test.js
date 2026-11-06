@@ -8,8 +8,8 @@ const html = fs.readFileSync(file, 'utf8');
 const js = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const cut = (from, to) => js.slice(js.indexOf(from), js.indexOf(to));
 const lib = new Function(cut('/* ===== データ', '/* ちず用の いち') +
-  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,restoreSayamaSelection,NUMC,SCENE,TUNNEL,RIVER,UG,UG_PORTAL,CITY,ELEVATED,elevationSection,elevationLevel,elevationAt,undergroundDepth};')();
-const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, restoreSayamaSelection, NUMC, SCENE, TUNNEL, RIVER, UG, UG_PORTAL, CITY, ELEVATED, elevationSection, elevationLevel, elevationAt, undergroundDepth } = lib;
+  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,restoreSayamaSelection,NUMC,SCENE,TUNNEL,RIVER,UG,UG_PORTAL,CITY,ELEVATED,elevationSection,elevationLevel,elevationAt,undergroundDepth,magicIkebukuro,platformDoorStatus};')();
+const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, restoreSayamaSelection, NUMC, SCENE, TUNNEL, RIVER, UG, UG_PORTAL, CITY, ELEVATED, elevationSection, elevationLevel, elevationAt, undergroundDepth, magicIkebukuro, platformDoorStatus } = lib;
 
 let pass = 0, fail = 0;
 function check(name, ok, info) { if (ok) pass++; else { fail++; console.log('NG', name, info || ''); } }
@@ -205,5 +205,53 @@ check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 
   check('地上の踏切は残る',groundCrossings>0);
 }
 
+// 2026-11-06 の設置状況。駅名だけで決められない番線も両方向で確認する。
+{
+  const tripFor = (id, from, to, type = '各停') => {
+    const R = ROUTES.find(route => route.id === id);
+    const idx = name => R.st.findIndex(station => station[0] === name);
+    return new Trip(R, idx(from), idx(to), 600, TYPES[id].findIndex(entry => entry.k === type));
+  };
+  const stationK = (trip, name) => Array.from({length: trip.len + 1}, (_, k) => k)
+    .find(k => trip.st(k)[0] === name);
+  for (const trip of [
+    tripFor('toshima', '池袋', '豊島園'),
+    tripFor('toshima', '豊島園', '池袋')
+  ]) {
+    const k = stationK(trip, '池袋');
+    check('Ikebukuro platform 1 from ' + trip.st(0)[0], magicIkebukuro(trip,k) && platformDoorStatus(trip,k) === 'none');
+    check('Toshimaen itself has no platform doors', platformDoorStatus(trip,stationK(trip,'豊島園')) === 'none');
+  }
+  for (const [id, from, to, station, expected, type] of [
+    ['toshima','池袋','練馬','池袋','active'],
+    ['ikebukuro','池袋','飯能','池袋','active'],
+    ['ikebukuro','池袋','飯能','池袋','none','特急むさし'],
+    ['sayama-through','池袋','西武球場前','池袋','none','特急'],
+    ['ikebukuro','練馬','練馬高野台','富士見台','installed'],
+    ['ikebukuro','練馬高野台','練馬','富士見台','active'],
+    ['ikebukuro','富士見台','練馬高野台','富士見台','installed'],
+    ['shinjuku','久米川','所沢','東村山','active'],
+    ['shinjuku','所沢','久米川','東村山','none'],
+    ['kokubunji','国分寺','東村山','東村山','none'],
+    ['seibuen','東村山','西武園','東村山','none'],
+    ['tamako','国分寺','多摩湖','国分寺','active'],
+    ['yurakucho','練馬','小竹向原','小竹向原','active'],
+    ['yurakucho','小竹向原','練馬','新桜台','none']
+  ]) {
+    const trip = tripFor(id, from, to, type);
+    const k = stationK(trip,station);
+    check(`doors ${from}→${to} ${station} ${type || 'Local'}`,
+      trip.ok && trip.type.k === (type || '各停') && !magicIkebukuro(trip,k) && platformDoorStatus(trip,k) === expected);
+  }
+  const withDoors = new Set();
+  for (const R of ROUTES) {
+    for (const [a,b] of [[0,R.st.length-1],[R.st.length-1,0]]) {
+      const trip = new Trip(R,a,b,600,0);
+      for (let k=0;k<=trip.len;k++) if (platformDoorStatus(trip,k)!=='none') withDoors.add(trip.st(k)[0]);
+    }
+  }
+  const expected = ['池袋','練馬','中村橋','富士見台','練馬高野台','石神井公園','保谷','所沢','西武新宿','高田馬場','東村山','新所沢','国分寺','小竹向原'];
+  check('only confirmed stations have doors', withDoors.size === expected.length && expected.every(name => withDoors.has(name)), [...withDoors]);
+}
 console.log(`pass ${pass} / fail ${fail}`);
 process.exit(fail ? 1 : 0);
