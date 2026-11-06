@@ -143,6 +143,24 @@ check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 
   check('折返した下りは高架',elevationAt(up,up.X(3))===1);
   const branch=train('kokubunji','国分寺','東村山');
   check('未高架化の国分寺線は地上',branch._heights.every(s=>s===null));
+  for (const [from,to] of [['新桜台','中村橋'],['中村橋','新桜台'],['新桜台','練馬'],['練馬','新桜台']]) {
+    const trip=train('yurakucho',from,to);
+    const nerima=trip.X(from==='練馬'?0:1);
+    const shin=trip.X(from==='新桜台'?0:trip.len);
+    const tunnelPortal=shin+(nerima-shin)*.55;
+    const halfway=(tunnelPortal+nerima)/2;
+    const mid=elevationAt(trip,halfway);
+    check('練馬のホーム全体が高架 '+from+'→'+to,[-310,0,310].every(dx=>elevationAt(trip,nerima+dx)===1));
+    check('新桜台側のトンネル出口と勾配 '+from+'→'+to,elevationAt(trip,tunnelPortal+Math.sign(shin-nerima))===0&&mid>0&&mid<1);
+    let prev=elevationAt(trip,0);
+    let smooth=true;
+    for(let px=10;px<=trip._D;px+=10){
+      const next=elevationAt(trip,px);
+      if(Math.abs(next-prev)>=.02)smooth=false;
+      prev=next;
+    }
+    check('練馬の通過と折り返しで高さが飛ばない '+from+'→'+to,smooth);
+  }
   for (const trip of [t,down,up,branch,train('shinjuku','久米川','東村山')]) {
     let last=elevationAt(trip,-1000);
     for(let x=-990;x<=trip._D+1000;x+=10){const h=elevationAt(trip,x);
