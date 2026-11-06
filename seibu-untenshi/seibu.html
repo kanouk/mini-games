@@ -625,17 +625,23 @@ const TUNNEL={'吾野|西吾野':0.4,'正丸|西吾野':0.5,'正丸|芦ヶ久保
 const RIVER={'仏子|元加治':900,'新狭山|狭山市':900,'武蔵横手|高麗':420};
 const UG={'小竹向原':1,'新桜台':1};
 /* 高架の主な区間。境界のキロ・勾配はゲーム用の近似。東村山は下りのみ（2026年11月確認）。 */
-const ELEVATED={ikebukuro:{from:4.75,to:12.2},shinjuku:{from:24.85,to:27.15,dir:1}};
+const ELEVATED={
+  ikebukuro:{from:4.75,to:12.2},
+  // 練馬を0kmとし、新桜台からのトンネル出口（約0.63km）から高架へつなぐ。
+  yurakucho:{from:-.42,to:.63,ramp:.42},
+  shinjuku:{from:24.85,to:27.15,dir:1}
+};
 function elevationSection(R,a,b){
   const seg=R.seg[Math.min(a,b)],range=seg&&ELEVATED[seg.l];if(!range)return null;
   const stations=BASE[seg.l].st,from=stations.find(s=>s[0]===R.st[a][0]),to=stations.find(s=>s[0]===R.st[b][0]);
   if(!from||!to||(range.dir&&Math.sign(to[4]-from[4])!==range.dir))return null;
   if(Math.max(from[4],to[4])<=range.from||Math.min(from[4],to[4])>=range.to)return null;
-  return {a:from[4],b:to[4],from:range.from,to:range.to};
+  return {a:from[4],b:to[4],from:range.from,to:range.to,ramp:range.ramp};
 }
 function elevationLevel(section,f){
   if(!section)return 0;const km=section.a+(section.b-section.a)*Math.max(0,Math.min(1,f));
-  const p=Math.max(0,Math.min(1,(km-section.from)/.16,(section.to-km)/.16));return p*p*(3-2*p);
+  const ramp=section.ramp??.16;
+  const p=Math.max(0,Math.min(1,(km-section.from)/ramp,(section.to-km)/ramp));return p*p*(3-2*p);
 }
 
 /* ---------- しゃりょう（SERIES） ----------

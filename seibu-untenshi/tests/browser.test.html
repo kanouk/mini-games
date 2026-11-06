@@ -15,6 +15,8 @@ async function mount(width,height){
   source=source.replace(marker,marker+`const clipCalls=[];const originalPlay=playClip;playClip=name=>{clipCalls.push(name);return originalPlay(name)};window.qa={
     get state(){return {state,pos,target,doorAnim,people,busy:paxBusy(),elevation:elevationAt(trip,pos),change:driverChange,waiting:waitingDriver,remaining:X(target)-pos,front:pos+FRONT,clipCalls};},
     async audio(){await clipsReady;return {ah:clipBuffers.ah?.duration,handover:clipBuffers.handover?.duration};},
+    nerima(){const R=ROUTES.find(r=>r.id==='yurakucho');setTrip(new Trip(R,stIndex(R,'新桜台'),stIndex(R,'中村橋'),600,0,'6000'),false);},
+    levelAt(offset){return elevationAt(trip,pos+offset);},
     hoya(){const R=ROUTES[0];setTrip(new Trip(R,stIndex(R,'大泉学園'),stIndex(R,'ひばりヶ丘'),600,0,'40000'),false);},
     force(){people.forEach(p=>p.willTrip=false);const p=pickStumbler(people,()=>0);if(!p)throw Error('No candidate');p.willTrip=true;return p;},
     step(seconds){for(let i=0;i<Math.ceil(seconds/.05);i++){this.tick=(this.tick||1000)+50;frame(this.tick);}},
@@ -33,6 +35,17 @@ document.querySelector('#run').onclick=async()=>{
     const sizes=params.has('preview')?[[1024,768]]:[[400,844],[1024,768]];
     for(const [width,height] of sizes){
       const {w,d,qa,errors}=await mount(width,height);check(w.innerWidth===width,'画面幅 '+width);
+      if(params.get('preview')==='nerima'){
+        qa.nerima();pointer(w,d,'pointerdown');
+        qa.step(3);
+        for(let i=0;i<100&&qa.state.state!=='stopped';i++)qa.step(.5);
+        pointer(w,d,'pointerup');
+        check(qa.state.state==='stopped'&&d.querySelector('#bannerLabel').textContent.includes('練馬'),'新桜台から練馬に到着する');
+        check([-310,0,310].every(offset=>qa.levelAt(offset)===1),'練馬のホーム全体で線路が同じ高さになる');
+        check(errors.length===0,'実行時エラーなし');
+        result.textContent+='\n新桜台から練馬へ到着（確認用）';
+        return;
+      }
       const person=qa.force();pointer(w,d,'pointerdown');qa.step(.5);
       check(person.kind==='stumble'&&person.t>0,'乗車時につまずいて転ぶ');
       check(qa.state.people.filter(p=>p.kind==='stumble').length===1,'転ぶ人は1人だけ');
