@@ -5,7 +5,7 @@ const {Trip,ROUTES,elevationAt}=new Function(cut('/* ===== データ','/* ちず
 const R=ROUTES[0],index=n=>R.st.findIndex(s=>s[0]===n);
 const t=new Trip(R,index('大泉学園'),index('ひばりヶ丘'),600,0,'40000');
 const api=vm.runInNewContext(`
- let trip,said=[],busy=false,state='stopped',bellT=0;const FRONT=290;
+ let trip,said=[],busy=false,state='stopped',bellT=0,auto=true,doorAnim=1;const FRONT=290;
  const X=k=>trip.X(k),speechBusy=()=>busy,playClip=n=>said.push(n),bell=()=>{},led=()=>{};
  ${cut('function depart(){','/* ---------- のりおりする ひと')}
  ${cut('let DOORS=[];','/* しゅべつ・いきさき')}

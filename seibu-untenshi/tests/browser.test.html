@@ -7,21 +7,31 @@ let count=0,frame,key;
 function check(ok,message){if(!ok)throw Error(message);count++;result.textContent+='\n✓ '+message;}
 async function mount(width,height){
   frame?.remove();key='seibu-boarding-test-'+Date.now();
-  localStorage.setItem(key,JSON.stringify({auto:false,soundOn:false,mapOn:true,lineId:'ikebukuro',tripA:3,tripB:4,ti:0,ser:'40000'}));
+  localStorage.setItem(key,JSON.stringify({auto:true,soundOn:false,mapOn:true,lineId:'ikebukuro',tripA:3,tripB:4,ti:0,ser:'40000'}));
   let source=await(await fetch('../seibu.html')).text();
   source=source.replaceAll("'seibu'",JSON.stringify(key)).replace('<script>','<script>Math.random=()=>.6;window.requestAnimationFrame=()=>0;');
   const marker='if(hot&&hot.ready)hot.ready(start);else start(hot&&hot.data?hot.data:{});';
   if(!source.includes(marker))throw Error('QA insertion point not found');
   source=source.replace(marker,marker+`const clipCalls=[];const originalPlay=playClip;playClip=name=>{clipCalls.push(name);return originalPlay(name)};
-  let themeDrawn=false,gateOpening;
-  const canopy=drawIkebukuroCanopy,gates=drawPlatformDoors;
+  let themeDrawn=false,gateOpening,crewStations=[];
+  const canopy=drawIkebukuroCanopy,gates=drawPlatformDoors,platformCrew=drawPlatformCrew;
   drawIkebukuroCanopy=(...args)=>{themeDrawn=true;canopy(...args);};
   drawPlatformDoors=(c,y,opening)=>{gateOpening=opening;gates(c,y,opening);};
+  drawPlatformCrew=(k,camX)=>{crewStations.push(st(k)[0]);platformCrew(k,camX);};
   window.qa={
     get state(){return {state,pos,target,doorAnim,people,busy:paxBusy(),elevation:elevationAt(trip,pos),change:driverChange,waiting:waitingDriver,remaining:X(target)-pos,front:pos+FRONT,clipCalls};},
-    get stationVisual(){return {themeDrawn,gateOpening};},
+    get stationVisual(){return {themeDrawn,gateOpening,crewStations};},
     ikebukuro(){const R=ROUTES[0];setTrip(new Trip(R,0,stIndex(R,'飯能'),600,0,'30000'),false);},
     boarding(){setTrip(new Trip(ROUTES[0],3,4,600,0,'40000'),false);},
+    allPlatformCrews(){
+      const stations=new Set();
+      for(const R of ROUTES)for(let i=0;i<R.st.length;i++){
+        setTrip(new Trip(R,i,i===0?1:i-1,600,0),false);this.step(.05);
+        if(!crewStations.includes(R.st[i][0]))throw Error('Missing platform crew '+R.st[i][0]);
+        stations.add(R.st[i][0]);
+      }
+      return stations.size;
+    },
     async audio(){await clipsReady;return {ah:clipBuffers.ah?.duration,handover:clipBuffers.handover?.duration};},
     nerima(){const R=ROUTES.find(r=>r.id==='yurakucho');setTrip(new Trip(R,stIndex(R,'新桜台'),stIndex(R,'中村橋'),600,0,'6000'),false);},
     toshima(from,to){const R=ROUTES.find(r=>r.id==='toshima');setTrip(new Trip(R,stIndex(R,from),stIndex(R,to),600,0,'30000'),false);},
@@ -30,7 +40,7 @@ async function mount(width,height){
     trackHeight(){return groundY-railY(pos);},
     hoya(){const R=ROUTES[0];setTrip(new Trip(R,stIndex(R,'大泉学園'),stIndex(R,'ひばりヶ丘'),600,0,'40000'),false);},
     force(){people.forEach(p=>p.willTrip=false);const p=pickStumbler(people,()=>0);if(!p)throw Error('No candidate');p.willTrip=true;return p;},
-    step(seconds){for(let i=0;i<Math.ceil(seconds/.05);i++){themeDrawn=false;gateOpening=undefined;this.tick=(this.tick||1000)+50;frame(this.tick);}},
+    step(seconds){for(let i=0;i<Math.ceil(seconds/.05);i++){themeDrawn=false;gateOpening=undefined;crewStations=[];this.tick=(this.tick||1000)+50;frame(this.tick);}},
   };`);
   frame=document.createElement('iframe');frame.title='隔離した確認用ゲーム';frame.style.width=width+'px';frame.style.height=height+'px';frames.replaceChildren(frame);
   const loaded=new Promise(resolve=>frame.onload=resolve);frame.srcdoc=source;await loaded;await frame.contentDocument.fonts.ready;
@@ -46,6 +56,48 @@ document.querySelector('#run').onclick=async()=>{
     const sizes=params.has('preview')?[[1024,768]]:[[400,844],[1024,768]];
     for(const [width,height] of sizes){
       const {w,d,qa,errors}=await mount(width,height);check(w.innerWidth===width,'画面幅 '+width);
+      if(!params.has('preview')||params.get('preview')==='manual-doors'){
+        d.querySelector('#auto').click();qa.ikebukuro();qa.step(.05);
+        const door=d.querySelector('#doorBtn');
+        const waitClosed=()=>{for(let i=0;i<400&&(qa.state.state!=='stopped'||qa.state.doorAnim!==0);i++)qa.step(.05);};
+        check(qa.stationVisual.crewStations.includes('池袋'),'池袋のホームに制服の車掌さんを描く');
+        pointer(w,d,'pointerdown');qa.step(8);pointer(w,d,'pointerup');
+        check(qa.state.state==='stopped'&&qa.state.pos===0,'手動ではドアを開けたまま発車できない');
+        door.click();qa.step(.1);door.click();qa.step(1);
+        check(qa.state.state==='stopped'&&qa.state.doorAnim===1&&!door.disabled,'ベル中に開け直しても次の操作ができる');
+        door.click();waitClosed();qa.step(2);
+        check(qa.state.state==='stopped'&&qa.state.doorAnim===0&&qa.state.pos===0,'手動で閉めても発車ボタンを押すまで停まる');
+        door.click();qa.step(2);
+        check(qa.state.doorAnim===1&&qa.stationVisual.gateOpening===1,'手動で車両とホームドアを開け直せる');
+        door.click();
+        for(let i=0;i<400&&qa.state.state!=='closing';i++)qa.step(.05);
+        qa.step(.3);check(qa.state.doorAnim>0&&qa.state.doorAnim<1,'閉扉アニメーションの途中を通る');
+        door.click();qa.step(2);
+        check(qa.state.state==='stopped'&&qa.state.doorAnim===1&&!door.disabled,'閉まる途中でも開け直せる');
+        door.click();waitClosed();
+        pointer(w,d,'pointerdown');qa.step(3);
+        check(qa.state.state==='running'&&door.disabled,'閉扉後に発車でき、走行中はドアを操作できない');
+        for(let i=0;i<2400&&qa.state.state!=='stopped';i++)qa.step(.05);
+        check(qa.state.state==='stopped'&&qa.state.pos>0,'手動操作で次駅に到着できる');
+        const arrivedAt=qa.state.pos;qa.step(8);
+        check(qa.state.doorAnim===0&&qa.state.pos===arrivedAt,'到着後は長押しのままでも自動でドアを開けない');
+        check(qa.stationVisual.crewStations.includes('椎名町'),'次の駅にも車掌さんがいる');
+        pointer(w,d,'pointerup');pointer(w,d,'pointerdown');qa.step(2);pointer(w,d,'pointerup');
+        check(qa.state.pos===arrivedAt,'到着後は一度ドアを開けるまで発車できない');
+        door.click();qa.step(2);
+        check(qa.state.doorAnim===1&&!door.disabled,'到着駅でボタンを押すとドアが開く');
+        const rect=door.getBoundingClientRect();
+        check(rect.left>=0&&rect.right<=width&&rect.height>=44,'ドアボタンが画面内に収まりタッチできる');
+        check(errors.length===0,'手動開閉で実行時エラーなし');
+        if(params.get('preview')==='manual-doors')return;
+        qa.boarding();door.click();waitClosed();
+        d.querySelector('#auto').click();qa.step(.85);
+        check(qa.state.doorAnim>0&&qa.state.doorAnim<1,'自動に切り替えると閉じたドアを開けて乗降を始める');
+        d.querySelector('#auto').click();qa.step(1);
+        check(qa.state.doorAnim===1&&!door.disabled,'自動開扉の途中で手動に戻しても操作を続けられる');
+        check(qa.allPlatformCrews()>80,'全路線の各駅で車掌さんを描画できる');
+        d.querySelector('#auto').click();qa.boarding();
+      }
       if(!params.has('preview')||['ikebukuro','platform-doors'].includes(params.get('preview'))){
         qa.toshima('池袋','豊島園');qa.step(.05);
         check(qa.stationVisual.themeDrawn&&qa.stationVisual.gateOpening===undefined,'豊島園行きの池袋1番ホームは特別な装飾でホームドアなし');
