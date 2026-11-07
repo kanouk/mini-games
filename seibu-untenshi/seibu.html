@@ -84,17 +84,19 @@ canvas{display:block;width:100%;height:100%;touch-action:none;cursor:pointer}
 button{font-family:var(--font);border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .go,.horn,canvas{touch-action:none}
 button:focus-visible{outline:4px solid var(--panel);outline-offset:3px}
-/* うんてんの ボタン：act（きほん）＋ main（おおきい 3つ）／ sub（ちいさい 2つ）。いろは --bg と --sh で きりかえる */
+/* うんてんの ボタン：act（きほん）＋ main（おおきい 4つ）／ sub（ちいさい 2つ）。いろは --bg と --sh で きりかえる */
 .act{min-height:92px;border-radius:24px;background:var(--bg);color:#fff;font-weight:800;box-shadow:0 6px 0 var(--sh);white-space:nowrap}
 .act:active{transform:translateY(4px);box-shadow:0 2px 0 var(--sh)}
 .act.main{flex:1 1 0;min-width:120px;padding:0 8px;font-size:clamp(16px,2.1vw,26px)}
 .act.sub{flex:0 0 auto;min-width:92px;padding:0 14px;font-size:clamp(15px,1.8vw,19px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
 .act.sub svg{width:34px;height:34px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-.go{--bg:var(--go);--sh:#c99a00;color:var(--go-ink)}
+.go{--bg:var(--go);--sh:#c99a00;color:var(--go-ink);white-space:normal}
 .go.held{transform:translateY(4px);box-shadow:0 2px 0 var(--sh)}
 .go.wait{--bg:#e6e9ef;--sh:#a9b0bd;color:#5b6475}
 .annbtn{--bg:#2aa59a;--sh:#1b7a71}
 .crewbtn{--bg:#5b5fc7;--sh:#3e419a}
+.doorbtn{--bg:#287bb5;--sh:#195681}
+.doorbtn:disabled{--bg:#465469;--sh:#2d394c;color:#bac5d4;cursor:default;transform:none}
 .horn{--bg:var(--horn);--sh:#c45e1d}
 .ebtn{--bg:#d62839;--sh:#9c1626}
 .ebtn:disabled{--bg:#4a2a35;--sh:#2e1a20;color:#a88c94;cursor:default;transform:none}
@@ -226,7 +228,7 @@ li:first-child>.strow::before{top:50%}li:last-child>.strow::before{bottom:50%}
   .led span{animation:none;padding-left:8px;white-space:normal;font-size:20px;line-height:1.2}
   .led{height:auto;min-height:46px;white-space:normal}
 }
-@media (max-width:520px){.act.main{flex-basis:28%;min-width:0;font-size:15px;padding:0 4px}.act.sub{flex:1 1 40%;min-height:64px;flex-direction:row}}
+@media (max-width:520px){.act.main{flex-basis:calc(50% - 6px);min-width:0;min-height:64px;font-size:15px;padding:0 4px}.act.sub{flex:1 1 40%;min-height:64px;flex-direction:row}}
 /* スマホ：うえの ひょうじを ちいさく。じこくと はやさを 1ぎょうに、ちずは ちいさく して おすと おおきく なる */
 @media (max-width:640px){
   .hud{gap:8px}
@@ -372,6 +374,7 @@ li:first-child>.strow::before{top:50%}li:last-child>.strow::before{bottom:50%}
   </div>
   <div class="bar">
     <button id="go" class="act main go" type="button">しゅっぱつ！</button>
+    <button id="doorBtn" class="act main doorbtn" type="button" aria-pressed="true">ドアを しめる</button>
     <button id="annBtn" class="act main annbtn" type="button">アナウンス</button>
     <button id="crewBtn" class="act main crewbtn" type="button">しゃしょう</button>
     <button id="horn" class="act sub horn" type="button" aria-label="ファーン（けいてき）"><svg aria-hidden="true"><use href="#i-horn"/></svg><span>ファーン</span></button>
@@ -918,11 +921,12 @@ const reduced=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').
 
 const $=id=>document.getElementById(id);
 const cv=$('cv');let ctx=cv.getContext('2d');
-const goBtn=$('go'), hornBtn=$('horn'), autoBtn=$('auto'), sndBtn=$('snd');
+const goBtn=$('go'), doorBtn=$('doorBtn'), hornBtn=$('horn'), autoBtn=$('auto'), sndBtn=$('snd');
 
 let W=0,H=0,DPR=1,s=1,bw=0,bh=0,ty=0;
 let pos=0,v=0,state='stopped',target=0,stopT=10,doorAnim=1,announced=false,hornT=0,first=true,bellT=0;
 let auto=false,soundOn=true;
+let doorOpening=false,doorsServed=true;
 const holders=new Set();
 const holding=()=>holders.size>0;
 
@@ -1074,8 +1078,19 @@ function press(src){
 function release(src){holders.delete(src);}
 function depart(){
   if(state!=='stopped'||driverChange)return;
+  if(!auto&&(doorAnim!==0||doorOpening||!doorsServed||paxBusy()))return;
   state='bell';bellT=0;bell();
-  led('はっしゃ します  ドアが しまります  ごちゅうい ください');
+  led(doorAnim>0?'はっしゃ します  ドアが しまります  ごちゅうい ください':'はっしゃ します');
+}
+function operateDoors(){
+  if(auto||!atStation()||doorOpening)return;
+  if(state==='bell'||state==='closing'||doorAnim===0){
+    state='stopped';doorOpening=doorAnim<1;stopT=0;doorSnd();
+    led('ドアが あきます  あしもとに ごちゅうい ください');
+  }else if(doorAnim===1&&!driverChange){
+    state='bell';bellT=0;bell();
+    led('ドアが しまります  ごちゅうい ください');
+  }
 }
 /* ---------- のりおりする ひと ---------- */
 let DOORS=[];/* ホームにかかるドアの位置（列車の中心からのきょり）。しゃりょうで かわる */
@@ -1157,10 +1172,17 @@ function drawPerson(p,camX){
     ctx.fillStyle=L.shirt;rr(x-3.2*h,y-18*h,6.4*h,10*h,2*h);ctx.fill();
     ctx.fillStyle=L.skin;ctx.beginPath();ctx.arc(x,y-21.5*h,3.2*h,0,7);ctx.fill();
     ctx.fillStyle=L.hair;ctx.beginPath();ctx.arc(x,y-22.2*h,3.3*h,Math.PI,0);ctx.fill();
-    if(p.driver){
+    if(p.driver||p.crew){
       ctx.fillStyle='#172a49';rr(x-4*h,y-26*h,8*h,3.8*h,1);ctx.fill();ctx.fillRect(x-4*h,y-23*h,9*h,1.4*h);
       ctx.fillStyle='#f4ce65';ctx.fillRect(x-3.5*h,y-23.5*h,7*h,.7*h);ctx.fillRect(x+1*h,y-16*h,1*h,2*h);
       ctx.fillStyle='#fff';ctx.fillRect(x-.6*h,y-18*h,1.2*h,4*h);
+    }
+    if(p.crew){
+      ctx.fillStyle='#b12c3f';ctx.fillRect(x-3.3*h,y-16*h,2*h,3*h);
+      const handY=y-(p.signaling?23:12)*h;
+      ctx.strokeStyle=L.shirt;ctx.lineWidth=2.4*h;ctx.beginPath();
+      ctx.moveTo(x+2.5*h,y-17*h);ctx.lineTo(x+6*h,handY);ctx.stroke();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x+6*h,handY,1.8*h,0,Math.PI*2);ctx.fill();
     }
     if(p.kind==='missed'){
       const side=p.fallDir,wave=p.departed&&!reduced?Math.sin(p.leaveT*9)*1.5:0;
@@ -1246,7 +1268,7 @@ function stationReached(k){if(k in delayLog)return;
   segEstop=false;delayLog[k]=delay;
   if(justRecovered&&!atStation()){justRecovered=false;led('おくれを とりもどしました  ただいま ていじ うんてん です');}}
 function arrive(){
-  v=0;pos=X(target);state='stopped';stopT=0;spawnAlight(target);stationReached(target);const rec=justRecovered;justRecovered=false;
+  v=0;pos=X(target);state='stopped';stopT=0;doorAnim=0;doorOpening=false;doorsServed=false;spawnAlight(target);stationReached(target);const rec=justRecovered;justRecovered=false;
   beginDriverChange(target);
   pinpon();
   const n=st(target),end=isEnd(target),th=thruAt(target);
@@ -1317,14 +1339,20 @@ function update(dt){
   const prevJoint=Math.floor(pos/JOINT),prevK=kAt(pos);
   if(state==='stopped'){
     stopT+=dt;
-    if(stopT>0.6&&doorAnim<1){if(doorAnim===0)doorSnd();doorAnim=Math.min(1,doorAnim+dt*1.5);}
+    if((auto||doorOpening)&&stopT>0.6&&doorAnim<1){
+      if(doorAnim===0&&!doorOpening)doorSnd();
+      doorAnim=Math.min(1,doorAnim+dt*1.5);
+      if(doorAnim===1){doorOpening=false;doorsServed=true;}
+    }
     if(auto&&stopT>6)depart();
-    else if(holding()&&stopT>3.5&&!paxBusy())depart();/* ながおし したままなら、のりおりが おわったら つぎの えきへ */
   }else if(state==='bell'){
-    bellT+=dt;if(bellT>1.5&&!paxBusy()){state='closing';doorSnd();}
+    bellT+=dt;if(bellT>1.5&&!paxBusy()){
+      if(doorAnim===0)startRunning();
+      else{state='closing';doorSnd();}
+    }
   }else if(state==='closing'){
     doorAnim-=dt*1.2;
-    if(doorAnim<=0){doorAnim=0;startRunning();}
+    if(doorAnim<=0){doorAnim=0;if(auto)startRunning();else{state='stopped';stopT=0;}}
   }else if(state==='running'){
     if(holding()||auto)v+=ACC*dt;else v-=COAST*dt;
     {const vm=segVmax(curK());if(v>vm)v=Math.max(vm,v-BRAKE*dt);v=Math.max(0,v);}
@@ -1895,6 +1923,11 @@ function platformDoorOpening(k,status){
   if(status==='installed')return 1; // 使用開始前は開けたまま。
   return status==='active'&&atStation()&&Math.abs(pos-X(k))<1?doorAnim:0;
 }
+const PLATFORM_CREW_LOOK={skin:'#e2b48e',shirt:'#233d62',pants:'#172a49',hair:'#2b2118',h:1.15,bag:0};
+function drawPlatformCrew(k,camX){
+  const sx=X(k),signaling=atStation()&&Math.abs(pos-sx)<1&&(doorOpening||doorAnim>0&&doorAnim<1||state==='bell'||state==='closing');
+  drawPerson({X:sx+FRONT-26,sx,yo:0,a:1,ph:0,kind:'platformCrew',crew:true,signaling,look:PLATFORM_CREW_LOOK},camX);
+}
 function drawPlatformDoors(c,y,opening){
   const top=y-36,bottom=y-10,halfGap=11;
   let edge=c-310;
@@ -1930,6 +1963,7 @@ function drawNearPlatform(camX,t){
     const doors=platformDoorStatus(trip,k);
     if(doors!=='none')drawPlatformDoors(c,y,platformDoorOpening(k,doors));
     if(st(k)[0]==='豊島園')drawToshimaProps(c,y);
+    drawPlatformCrew(k,camX);
   }
   /* ふみきり（てまえの けいほうき） */
   const savedTy=ty;ty=groundY;
@@ -1947,16 +1981,22 @@ function syncUI(){
   const ck=fmt(nowMin());if(ck!==lastClock){$('clock').textContent=ck;lastClock=ck;if(!$('tt').hidden)renderTT();}
   const fk=kAt(pos+0.01);
   const d=dest(fk),ty0=tyAt(sg);
-  const busy=state==='bell'&&paxBusy(),label=line.id+'|'+fk+'|'+sg+'|'+state+'|'+busy+'|'+trip.ser+'|'+!!driverChange;
+  const busy=paxBusy(),manualWait=!auto&&state==='stopped'&&(doorAnim>0||!doorsServed);
+  const label=line.id+'|'+fk+'|'+sg+'|'+state+'|'+busy+'|'+trip.ser+'|'+!!driverChange+'|'+manualWait+'|'+doorOpening;
   if(label!==lastLabel){
     lastLabel=label;
     const tb=$('typeBadge');tb.textContent=ty0.k;tb.style.setProperty('--tc',ty0.c);
     $('lineName').textContent=trip.baseAt(sg).name;$('maxKmh').textContent='さいこう '+segKmh(sg);$('destName').textContent=d[0]+'ゆき';
     $('fromName').textContent=st(fk)[0];$('toName').textContent=st(fk+1)[0];
-    const S0=STATES[state];goBtn.textContent=driverChange?'こうたい まってね':(busy&&S0.busyLabel?S0.busyLabel:S0.label);
+    const S0=STATES[state];goBtn.textContent=driverChange?'こうたい まってね':manualWait?'ドアを おしてね':(busy&&S0.busyLabel?S0.busyLabel:S0.label);
     $('banner').hidden=!(S0.atSt||state==='estop'||state==='estopWait');
-    goBtn.classList.toggle('wait',S0.wait);$('eBtn').disabled=!S0.canE;
+    goBtn.classList.toggle('wait',S0.wait||manualWait);$('eBtn').disabled=!S0.canE;
   }
+  doorBtn.disabled=auto||!atStation()||doorOpening||!!driverChange&&state==='stopped'&&doorAnim===1;
+  doorBtn.textContent=auto?'ドア じどう':doorOpening?'ドアが あきます':state==='bell'||state==='closing'?'ドアを あけなおす':doorAnim===0?'ドアを あける':'ドアを しめる';
+  doorBtn.setAttribute('aria-pressed',doorAnim===1);
+  if(manualWait)$('bannerSub').textContent=doorAnim===0?'ドアを あけてね':doorOpening?'ドアが あきます':busy?'のりおり まってね':'ドアを しめてね';
+  else if(!auto&&state==='stopped')$('bannerSub').textContent='しゅっぱつ！を おしてね';
   $('dot').style.left=(frac(pos,fk)*100)+'%';
   goBtn.classList.toggle('held',holding());
 }
@@ -2023,7 +2063,7 @@ function setTrip(t,speak){
   driverChange=null;waitingDriver=null;$('driverNotice').hidden=true;
   delay=0;delayLog={};depLog={};segEstop=false;justRecovered=false;featCache.clear();
   trip=t;line=t.line;curS=null;computeDoors();applyColor();
-  pos=0;v=0;state='stopped';stopT=0;doorAnim=1;announced=false;holders.clear();
+  pos=0;v=0;state='stopped';stopT=0;doorAnim=1;doorOpening=false;doorsServed=true;announced=false;holders.clear();
   const n=st(0),ty0=trip.type;
   showBanner(n[0]+' はつ',fmt(depMin(0)),'しゅっぱつ！を おしてね');
   led(trip.baseAt(0).name+'に ようこそ  '+ty0.k+' '+dest(0)[0]+'ゆき  '+n[0]+'（'+n[1]+'） '+fmt(depMin(0))+'はつ  しゃりょうは '+SER().name);
@@ -2143,6 +2183,7 @@ function bindHold(el,prefix){
   el.addEventListener('contextmenu',e=>e.preventDefault());
 }
 bindHold(goBtn,'g');bindHold(cv,'c');
+doorBtn.addEventListener('click',()=>{ensureAudio();operateDoors();syncUI();});
 hornBtn.addEventListener('click',horn);
 /* ---------- よく ある しゃない アナウンス ---------- */
 function nextInfo(){const k=moving()?target:nextStop(kNear(pos));return {n:st(k),t:arrMin(k)+delay};}
@@ -2193,7 +2234,14 @@ EREASONS.forEach(r=>{const b=document.createElement('button');b.type='button';b.
   const tx=document.createElement('span');tx.className='etx';tx.append(t,d);b.append(ic,tx);
   b.addEventListener('click',()=>{ensureAudio();closePanel('ePanel');emergency(r);});eGrid.appendChild(b);});
 $('eBtn').addEventListener('click',()=>{ensureAudio();if(!canEmergency())return;openPanel('ePanel','.ann');});
-autoBtn.addEventListener('click',()=>{ensureAudio();auto=!auto;autoBtn.setAttribute('aria-pressed',auto);if(auto&&state==='stopped')stopT=Math.max(stopT,5);save();});
+autoBtn.addEventListener('click',()=>{
+  ensureAudio();auto=!auto;autoBtn.setAttribute('aria-pressed',auto);
+  if(state==='stopped'){
+    if(auto)stopT=doorAnim===1?5:0;
+    else if(doorAnim>0&&doorAnim<1)doorOpening=true;
+  }
+  save();syncUI();
+});
 sndBtn.addEventListener('click',()=>{ensureAudio();soundOn=!soundOn;applySound();save();});
 /* ---------- ぜんがめん ---------- */
 const fsBtn=$('fsBtn'),root=document.documentElement;
