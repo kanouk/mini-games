@@ -37,6 +37,29 @@ body{background:var(--night);color:var(--panel);font-family:var(--font);overflow
 .app{position:relative;height:100%;display:flex;flex-direction:column}
 .stage{position:relative;flex:1;min-height:0;background:var(--sky);overflow:hidden}
 canvas{display:block;width:100%;height:100%;touch-action:none;cursor:pointer}
+#cv3{position:absolute;inset:0;pointer-events:none}#cv3[hidden]{display:none}
+.toast3d{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:9;padding:8px 18px;border-radius:6px;background:rgba(12,16,24,.82);color:#fff;font:600 14px/1.2 system-ui,sans-serif;letter-spacing:.14em;pointer-events:none;opacity:0;transition:opacity .35s}
+.toast3d.on{opacity:1}
+/* 3D モードの がめん：かざりを おさえた ひょうじ */
+.m3d{--font:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",system-ui,sans-serif;font-family:var(--font)}
+.m3d .pill,.m3d .map{background:rgba(12,16,24,.6);color:#eef2f6;border-radius:6px;box-shadow:none;border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.m3d .speed b,.m3d .clock b{font-weight:600}.m3d .lineinfo,.m3d .route{font-weight:600}
+.m3d .speed .max,.m3d .map small,.m3d .pill small{color:#b4bdc9}
+.m3d .map canvas{border-radius:3px}
+.m3d .led{border-radius:3px;border:1px solid #2a2a2a;height:38px;font-size:22px;line-height:36px}
+.m3d .route .line{height:3px;background:rgba(255,255,255,.4)}
+.m3d .banner{border-radius:6px;background:rgba(12,16,24,.66);box-shadow:none;border-left-width:3px;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.m3d .banner b{color:#fff;font-weight:600}.m3d .banner span,.m3d .banner small{font-weight:600}
+.m3d .bar{background:#0b0f15;gap:8px;padding-block:8px}
+.m3d .act{min-height:62px;border-radius:6px;box-shadow:none;background:#1a212b;border:1px solid rgba(255,255,255,.16);color:#eef2f6;font-weight:600}
+.m3d .act:active,.m3d .go.held{transform:none;box-shadow:none;background:#2b3644}
+.m3d .act.sub{flex-direction:row;gap:8px}.m3d .act.sub svg{width:24px;height:24px;stroke-width:1.8}
+.m3d .go{background:#e9edf2;color:#10151c;border-color:transparent}.m3d .go:active,.m3d .go.held{background:#c9d0d9}
+.m3d .go.wait{background:#262d38;color:#9aa4b2}
+.m3d .ebtn{border-color:#a8323f;color:#ff97a1}.m3d .ebtn:disabled{border-color:rgba(255,255,255,.1);color:#5d6673;background:#141920}
+.m3d .opt{height:52px;border-radius:6px;background:#141a22;border:1px solid rgba(255,255,255,.12);font-weight:600}
+.m3d .opt svg{width:22px;height:22px;stroke-width:1.7}
+.m3d .opt[aria-pressed="true"]{background:#2b3a4d;border-color:rgba(255,255,255,.4)}
 
 .hud{position:absolute;top:10px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));
   display:flex;gap:12px;align-items:flex-start;pointer-events:none}
@@ -313,6 +336,7 @@ li:first-child>.strow::before{top:50%}li:last-child>.strow::before{bottom:50%}
 <div class="app">
   <div class="stage" id="stage">
     <canvas id="cv" aria-label="しんかんせんが はしる けしき。おすと すすみます"></canvas>
+    <canvas id="cv3" hidden aria-hidden="true"></canvas>
     <div class="hud">
       <div class="hudMain">
       <div class="row">
@@ -364,6 +388,7 @@ li:first-child>.strow::before{top:50%}li:last-child>.strow::before{bottom:50%}
       </div>
     </div>
   </div>
+  <div class="toast3d" id="toast3d" role="status"></div>
   <div class="painter" id="painter" hidden>
     <div class="box">
       <h2>しんかんせんの いろを えらぼう</h2>
@@ -1193,12 +1218,45 @@ function syncUI(){
 function frame(now){
   const t=now/1000,dt=Math.min(0.05,last?t-last:0.016);last=t;
   update(dt);
+  if(r3d&&draw3d(t)){drawMap(t);syncUI();requestAnimationFrame(frame);return;}
   ctx.setTransform(DPR*s,0,0,DPR*s,0,0);
   const camX=pos-bw/2;
   drawBackground(camX,t);drawWorld(camX);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.32*night)+')';ctx.fillRect(0,0,bw,bh);}drawTrain(t);drawNearPlatform(camX);drawPeople(camX);if(night>0){ctx.fillStyle='rgba(10,18,45,'+(0.12*night)+')';ctx.fillRect(0,0,bw,bh);}drawMap(t);
   syncUI();
   requestAnimationFrame(frame);
 }
+
+/* ---------- うらモード：3D ひょうじ ----------
+   タイトル がめんの なにも ない ところを 10かい つづけて おすと きりかわる。
+   ゲームの うごきは おなじで、えを かく ところだけ shinkansen-3d.js に まかせる。 */
+const cv3=$('cv3');let r3d=null,want3d=false,loading3d=false,toastT=0;
+function toast3d(text){const el=$('toast3d');el.textContent=text;el.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('on'),2200);}
+function stop3d(){if(r3d){try{r3d.dispose();}catch(e){}r3d=null;}cv3.hidden=true;document.querySelector('.app').classList.remove('m3d');}
+function draw3d(t){
+  try{
+    dayM=((nowMin()%1440)+1440)%1440;night=keyAt(DARK,dayM,1);
+    r3d.render({t,pos,v,MAXV,doorAnim,lit:inTunnel(pos)||night>0.45,night,dayM,skyTop:keyAt(SKY,dayM,1),skyBot:keyAt(SKY,dayM,2),paint,people,reduced,world:trip,seed:line.id.length*31+trip.a*7+trip.b});
+    return true;
+  }catch(e){stop3d();want3d=false;try{localStorage.removeItem('shk3d');}catch(_){}resize();return false;}
+}
+function set3d(on,quiet){
+  want3d=on;try{if(on)localStorage.setItem('shk3d','1');else localStorage.removeItem('shk3d');}catch(e){}
+  if(!on){stop3d();resize();if(!quiet)toast3d('3D MODE  OFF');return;}
+  if(r3d||loading3d)return;loading3d=true;
+  import('./shinkansen-3d.js').then(m=>{
+    loading3d=false;if(!want3d)return;
+    cv3.hidden=false;document.querySelector('.app').classList.add('m3d');resize();
+    r3d=m.create(cv3,{SP,DOORS,feat,inTunnel,nearStation,sceneFor,st,idx,isCity:j=>CITY.has(st(j)[0]),lineColor:()=>line.c,stumblePose:t=>stumblePose(t,reduced)});
+    cv3.addEventListener('webglcontextlost',()=>{stop3d();want3d=false;},{once:true});
+    if(!quiet)toast3d('3D MODE  ON');
+  }).catch(()=>{loading3d=false;want3d=false;stop3d();try{localStorage.removeItem('shk3d');}catch(e){}if(!quiet)toast3d('3D MODE  利用できません');});
+}
+{let taps=0,tapT=0;
+  $('title').addEventListener('pointerdown',e=>{
+    if(e.target.closest('button,a'))return;
+    const now=performance.now();taps=now-tapT<1500?taps+1:1;tapT=now;
+    if(taps>=10){taps=0;set3d(!want3d);}
+  });}
 
 /* ---------- ちず ---------- */
 const mcv=$('mapcv'),mctx=mcv.getContext('2d');let mapOn=true,mapBase=null,mapSize=0,proj=null;
@@ -1473,7 +1531,7 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter'||e.key==='ArrowRight')release('k');});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)holders.clear();});
-window.addEventListener('resize',resize);
+window.addEventListener('resize',()=>{resize();if(r3d)r3d.resize();});
 
 function start(data){
   const d=Object.assign({},load(),data||{});
@@ -1485,6 +1543,7 @@ function start(data){
   const hot=window.claude&&window.claude.hot;
   if(hot&&hot.snapshot){try{hot.snapshot(()=>({paint,auto,soundOn,mapOn,startMin:trip.start,tripA:trip.a,tripB:trip.b,fast:trip.fast,lineId:line.id}));}catch(e){}}
   resize();
+  try{if(localStorage.getItem('shk3d')==='1')set3d(true,true);}catch(e){}
   if(document.fonts&&document.fonts.load){document.fonts.load('800 28px "M PLUS Rounded 1c"').catch(()=>{});}
   requestAnimationFrame(frame);
   showTitle();
