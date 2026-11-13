@@ -674,6 +674,8 @@ const SCENE={
 const CITY={'池袋':1,'西武新宿':1,'高田馬場':1,'練馬':0.8,'石神井公園':0.6,'大泉学園':0.5,'ひばりヶ丘':0.6,'所沢':0.9,'飯能':0.5,'入間市':0.4,'本川越':0.6,'田無':0.6,'国分寺':0.8,'武蔵境':0.6,'東村山':0.5,'小平':0.4,'拝島':0.5,'狭山市':0.5,'西武秩父':0.3,'新所沢':0.4};
 const TUNNEL={'吾野|西吾野':0.4,'正丸|西吾野':0.5,'正丸|芦ヶ久保':0.85,'横瀬|芦ヶ久保':0.3};
 const RIVER={'仏子|元加治':900,'新狭山|狭山市':900,'武蔵横手|高麗':420};
+/* かならず ふみきりを だす くかん：もじの じゅんで わかい ほうの えきからの わりあい（練馬→豊島園 の 0.8 は 豊島園の てまえ） */
+const CROSSING={'練馬|豊島園':[0.8]};
 const UG={'小竹向原':1,'新桜台':1};
 const UG_PORTAL=.55; // 地下駅から地上側へ進むときのトンネル出口
 /* 高架の主な区間。境界のキロ・勾配はゲーム用の近似。東村山は下りのみ（2026年11月確認）。 */
@@ -1025,7 +1027,11 @@ function feat(k){
   else if(T){f.t0=b+g*(0.5-T/2);f.t1=b+g*(0.5+T/2);}
   const R=RIVER[pk];if(R){f.r0=b+g*0.42;f.r1=b+g*0.42+Math.min(g*0.3,R);}
   if(!U&&!(T>=0.8)){/* ふみきり：まちの くかんには だいたい ある */
-    [0.2,0.7].forEach((p,i)=>{const x=b+g*p+hash(k*7+i)*g*0.08;if(hash(k*3+i*5+idx(k))<0.62&&elevationAt(trip,x)===0&&!(x>f.t0-300&&x<f.t1+300)&&!(x>f.r0-200&&x<f.r1+200))f.cr.push(x);});}
+    /* いきと かえりで おなじ ばしょに でるように、くかんの なまえ（pk）から きめる。CROSSING に ある くかんは かならず だす */
+    const fwd=st(k)[0]<st(k+1)[0],seed=[...pk].reduce((n,c)=>(n*31+c.charCodeAt(0))%9973,7),must=CROSSING[pk];
+    (must||[0.2,0.7]).forEach((p,i)=>{const q=must?p:p+hash(seed*7+i)*0.08,x=b+g*(fwd?q:1-q);
+      if((must||hash(seed*3+i*5)<0.62)&&elevationAt(trip,x)===0&&!(x>f.t0-300&&x<f.t1+300)&&!(x>f.r0-200&&x<f.r1+200))f.cr.push(x);});
+    f.cr.sort((m,n)=>m-n);}
   featCache.set(key,f);return f;
 }
 function inTunnel(x){const f=feat(kAt(x));return x>=f.t0&&x<=f.t1;}

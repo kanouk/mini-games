@@ -8,8 +8,8 @@ const html = fs.readFileSync(file, 'utf8');
 const js = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const cut = (from, to) => js.slice(js.indexOf(from), js.indexOf(to));
 const lib = new Function(cut('/* ===== データ', '/* ちず用の いち') +
-  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,restoreSayamaSelection,NUMC,SCENE,TUNNEL,RIVER,UG,UG_PORTAL,CITY,ELEVATED,elevationSection,elevationLevel,elevationAt,undergroundDepth,magicIkebukuro,platformDoorStatus};')();
-const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, restoreSayamaSelection, NUMC, SCENE, TUNNEL, RIVER, UG, UG_PORTAL, CITY, ELEVATED, elevationSection, elevationLevel, elevationAt, undergroundDepth, magicIkebukuro, platformDoorStatus } = lib;
+  'return {BASE,ROUTES,TYPES,SERIES,Trip,typeOK,stopsAt,typeRange,restoreSayamaSelection,NUMC,SCENE,TUNNEL,RIVER,CROSSING,UG,UG_PORTAL,CITY,ELEVATED,elevationSection,elevationLevel,elevationAt,undergroundDepth,magicIkebukuro,platformDoorStatus};')();
+const { BASE, ROUTES, TYPES, SERIES, Trip, typeOK, stopsAt, typeRange, restoreSayamaSelection, NUMC, SCENE, TUNNEL, RIVER, CROSSING, UG, UG_PORTAL, CITY, ELEVATED, elevationSection, elevationLevel, elevationAt, undergroundDepth, magicIkebukuro, platformDoorStatus } = lib;
 
 let pass = 0, fail = 0;
 function check(name, ok, info) { if (ok) pass++; else { fail++; console.log('NG', name, info || ''); } }
@@ -197,12 +197,17 @@ check('S-TRAIN thru', TYPES.yurakucho.filter(t => t.k === 'S-TRAIN').length === 
   }
   // 本番と同じ踏切生成処理を実行して、高架・勾配上には作られないことを確認。
   const features = cut('function pairKey(k)', '/* ---------- 保存');
-  const makeFeatures = new Function('trip','elevationAt','TUNNEL','UG','UG_PORTAL','RIVER',
+  const makeFeatures = new Function('trip','elevationAt','TUNNEL','UG','UG_PORTAL','RIVER','CROSSING',
     'const st=k=>trip.st(k),idx=k=>trip.idx(k),X=k=>trip.X(k),kAt=x=>trip.kAt(x),kNear=x=>Math.round(x);const hash=i=>.5;'+features+';return feat;');
   let groundCrossings=0;
-  for(const trip of [t,down,up,branch,subway,toshimaThrough]){const feature=makeFeatures(trip,elevationAt,TUNNEL,UG,UG_PORTAL,RIVER);
+  for(const trip of [t,down,up,branch,subway,toshimaThrough]){const feature=makeFeatures(trip,elevationAt,TUNNEL,UG,UG_PORTAL,RIVER,CROSSING);
     for(let k=0;k<trip.len*4;k++)for(const x of feature(k).cr){groundCrossings++;check('踏切は必ず地上',elevationAt(trip,x)===0);}}
   check('地上の踏切は残る',groundCrossings>0);
+  // 踏切は行きと帰りで同じ場所。練馬〜豊島園は豊島園の手前に必ず1つ。
+  {const R=ROUTES.find(r=>r.id==='toshima'),a=R.st.findIndex(s=>s[0]==='練馬'),trip=new Trip(R,a,a+1,600,0),feature=makeFeatures(trip,elevationAt,TUNNEL,UG,UG_PORTAL,RIVER,CROSSING);
+    const gap=trip.X(1)-trip.X(0),out=feature(0).cr.map(x=>x-trip.X(0)),back=feature(1).cr.map(x=>gap-(x-trip.X(1)));
+    check('練馬〜豊島園に踏切が1つ',out.length===1&&Math.abs(out[0]/gap-.8)<1e-9);
+    check('帰りも同じ場所に踏切',back.length===1&&Math.abs(back[0]-out[0])<1e-6);}
 }
 
 // 2026-11-06 の設置状況。駅名だけで決められない番線も両方向で確認する。
