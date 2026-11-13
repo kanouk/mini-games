@@ -60,6 +60,28 @@ canvas{display:block;width:100%;height:100%;touch-action:none;cursor:pointer}
 .m3d .opt{height:52px;border-radius:6px;background:#141a22;border:1px solid rgba(255,255,255,.12);font-weight:600}
 .m3d .opt svg{width:22px;height:22px;stroke-width:1.7}
 .m3d .opt[aria-pressed="true"]{background:#2b3a4d;border-color:rgba(255,255,255,.4)}
+/* 3D モード：よみこみ ちゅうの バー と、タイトル がめん */
+.load3d{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:rgba(8,10,14,.92);color:#e8ecf1;font:600 13px/1 system-ui,sans-serif;letter-spacing:.22em}
+.load3d[hidden]{display:none}
+.load3d .lbox{width:min(320px,70vw);display:flex;flex-direction:column;gap:14px;align-items:center}
+.load3d .lbar{width:100%;height:3px;background:rgba(255,255,255,.18);overflow:hidden}
+.load3d .lbar i{display:block;height:100%;width:0;background:#fff;transition:width .15s linear}
+.m3d.t3d .bar,.m3d.t3d .hud,.m3d.t3d .route,.m3d.t3d .banner{display:none}
+.m3d .title{background:linear-gradient(rgba(6,9,14,.3),rgba(6,9,14,0) 30%,rgba(6,9,14,0) 55%,rgba(6,9,14,.6));color:#fff}
+.m3d .title .tcloud,.m3d .title .tmt,.m3d .title .ttrack,.m3d .title .tground,.m3d .title canvas{display:none}
+.m3d .tfront{bottom:0;justify-content:flex-end;align-items:flex-start;gap:clamp(14px,3vh,26px);padding:0 max(28px,env(safe-area-inset-right,0px)) clamp(28px,7vh,64px) max(28px,env(safe-area-inset-left,0px))}
+.m3d .tlogo{align-items:flex-start;text-align:left}
+.m3d .tlogo .t1{background:none;border:0;box-shadow:none;rotate:none;padding:0;color:#fff;font-weight:600;font-size:clamp(13px,2.2vw,18px);letter-spacing:.5em;opacity:.9;text-shadow:0 1px 8px rgba(0,0,0,.7)}
+.m3d .tlogo .t2{font-weight:600;font-size:clamp(34px,7vw,72px);letter-spacing:.12em;margin-top:.3em}
+.m3d .tlogo .t2 span{color:#fff;-webkit-text-stroke:0;text-shadow:0 2px 18px rgba(0,0,0,.7);animation:none}
+.m3d .tbtns{justify-content:flex-start}
+.m3d .tstart,.m3d .tpick{border-radius:4px;box-shadow:none;animation:none;font-weight:600;min-height:52px;font-size:17px;letter-spacing:.08em}
+.m3d .tstart{background:#f2f4f7;color:#0d1118;border:1px solid transparent;padding:0 34px}
+.m3d .tstart::after{display:none}
+.m3d .tstart:active,.m3d .tpick:active{transform:none;box-shadow:none;opacity:.8}
+.m3d .tpick{background:rgba(12,16,24,.55);color:#fff;border:1px solid rgba(255,255,255,.4);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.m3d .tpick svg{width:20px;height:20px;stroke-width:1.8}
+.m3d .tback{background:rgba(12,16,24,.55);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;box-shadow:none;font-weight:600;font-size:13px}
 
 .hud{position:absolute;top:10px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));
   display:flex;gap:12px;align-items:flex-start;pointer-events:none}
@@ -389,6 +411,7 @@ li:first-child>.strow::before{top:50%}li:last-child>.strow::before{bottom:50%}
     </div>
   </div>
   <div class="toast3d" id="toast3d" role="status"></div>
+  <div class="load3d" id="load3d" hidden role="status" aria-label="3D モードを よみこみ ちゅう"><div class="lbox"><span>LOADING</span><div class="lbar"><i id="load3dBar"></i></div></div></div>
   <div class="painter" id="painter" hidden>
     <div class="box">
       <h2>しんかんせんの いろを えらぼう</h2>
@@ -1229,27 +1252,38 @@ function frame(now){
 /* ---------- うらモード：3D ひょうじ ----------
    タイトル がめんの なにも ない ところを 10かい つづけて おすと きりかわる。
    ゲームの うごきは おなじで、えを かく ところだけ shinkansen-3d.js に まかせる。 */
-const cv3=$('cv3');let r3d=null,want3d=false,loading3d=false,toastT=0;
+const cv3=$('cv3'),appEl=document.querySelector('.app');let r3d=null,want3d=false,loading3d=false,toastT=0,t3dOn=false,announce3d=false;
 function toast3d(text){const el=$('toast3d');el.textContent=text;el.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('on'),2200);}
-function stop3d(){if(r3d){try{r3d.dispose();}catch(e){}r3d=null;}cv3.hidden=true;document.querySelector('.app').classList.remove('m3d');}
+/* よみこみの すすみぐあい（0〜1）。1 で バーを けす */
+function load3d(p){const el=$('load3d');if(p>=1){el.hidden=true;return;}el.hidden=false;$('load3dBar').style.width=Math.round(p*100)+'%';}
+function stop3d(){if(r3d){try{r3d.dispose();}catch(e){}r3d=null;}cv3.hidden=true;t3dOn=false;appEl.classList.remove('m3d','t3d');load3d(1);}
+function fail3d(quiet){loading3d=false;want3d=false;stop3d();try{localStorage.removeItem('shk3d');}catch(e){}resize();if(!quiet)toast3d('3D MODE  利用できません');}
 function draw3d(t){
   try{
+    const tOn=!$('title').hidden;if(tOn!==t3dOn){t3dOn=tOn;appEl.classList.toggle('t3d',tOn);resize();r3d.resize();}
     dayM=((nowMin()%1440)+1440)%1440;night=keyAt(DARK,dayM,1);
-    r3d.render({t,pos,v,MAXV,doorAnim,lit:inTunnel(pos)||night>0.45,night,dayM,skyTop:keyAt(SKY,dayM,1),skyBot:keyAt(SKY,dayM,2),paint,people,reduced,world:trip,seed:line.id.length*31+trip.a*7+trip.b});
+    const p=r3d.render({t,title:tOn,pos,v,MAXV,doorAnim,lit:inTunnel(pos)||night>0.45,night,dayM,skyTop:keyAt(SKY,dayM,1),skyBot:keyAt(SKY,dayM,2),paint,people,reduced,world:trip,seed:line.id.length*31+trip.a*7+trip.b});
+    load3d(p<1?0.4+0.6*p:1);
+    if(p>=1&&announce3d){announce3d=false;toast3d('3D MODE  ON');}
     return true;
-  }catch(e){stop3d();want3d=false;try{localStorage.removeItem('shk3d');}catch(_){}resize();return false;}
+  }catch(e){fail3d(true);return false;}
+}
+/* ライブラリを さきに とりよせて、うけとった りょうを バーに だす（そのあとの import は キャッシュから よむ） */
+async function prefetch3d(url,size){
+  try{const r=await fetch(url);if(!r.ok||!r.body)return;const rd=r.body.getReader();let n=0;
+    for(;;){const {done,value}=await rd.read();if(done)break;n+=value.length;if(loading3d)load3d(0.38*Math.min(1,n/size));}}catch(e){}
 }
 function set3d(on,quiet){
   want3d=on;try{if(on)localStorage.setItem('shk3d','1');else localStorage.removeItem('shk3d');}catch(e){}
   if(!on){stop3d();resize();if(!quiet)toast3d('3D MODE  OFF');return;}
-  if(r3d||loading3d)return;loading3d=true;
-  import('./shinkansen-3d.js').then(m=>{
-    loading3d=false;if(!want3d)return;
-    cv3.hidden=false;document.querySelector('.app').classList.add('m3d');resize();
+  if(r3d||loading3d)return;loading3d=true;load3d(0);
+  prefetch3d('../vendor/three/three.module.min.js',691648).then(()=>import('./shinkansen-3d.js')).then(m=>{
+    loading3d=false;if(!want3d){load3d(1);return;}
+    load3d(0.4);cv3.hidden=false;appEl.classList.add('m3d');resize();
     r3d=m.create(cv3,{SP,DOORS,feat,inTunnel,nearStation,sceneFor,st,idx,isCity:j=>CITY.has(st(j)[0]),lineColor:()=>line.c,stumblePose:t=>stumblePose(t,reduced)});
-    cv3.addEventListener('webglcontextlost',()=>{stop3d();want3d=false;},{once:true});
-    if(!quiet)toast3d('3D MODE  ON');
-  }).catch(()=>{loading3d=false;want3d=false;stop3d();try{localStorage.removeItem('shk3d');}catch(e){}if(!quiet)toast3d('3D MODE  利用できません');});
+    cv3.addEventListener('webglcontextlost',()=>fail3d(true),{once:true});
+    announce3d=!quiet;
+  }).catch(()=>fail3d(quiet));
 }
 {let taps=0,tapT=0;
   $('title').addEventListener('pointerdown',e=>{

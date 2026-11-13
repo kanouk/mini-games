@@ -1,7 +1,7 @@
 /* しんかんせん うんてんし：3D表示（裏モード）。
    ゲームの進行は shinkansen.html がそのまま行い、ここは同じ状態を立体で描くだけ。
    長さの単位：ゲーム内の 10 が 1m。世界は列車の位置を原点にして動かす。 */
-import * as THREE from './vendor/three.module.min.js';
+import * as THREE from '../vendor/three/three.module.min.js';
 
 const U=0.1,CH=1500,CHM=CH*U,GY=-3,TOPY=-0.28;
 const CARS=8,CAR_L=25,GAP=0.4,NOSE=15,HEAD_X0=-1,HEAD_X1=27;
@@ -550,10 +550,10 @@ export function create(cv,G){
     if(L.bag===1)add(PG.bag,ms.bag,0.36,0.28,0.05);else if(L.bag===2)add(PG.pack,ms.bag,0,1.16,-0.2);
     g.scale.setScalar(L.h*1.02);g.userData={ms:Object.values(ms),legL,legR,armL,armR,rz:fract(L.h*37.7+p.sx*0.001)};scene.add(g);return g;
   }
-  function syncPeople(S){
+  function syncPeople(S,list,pos){
     const seen=new Set();
-    for(const p of S.people){
-      if(p.a<=0.02||Math.abs(p.X-S.pos)>3200)continue;
+    for(const p of list){
+      if(p.a<=0.02||Math.abs(p.X-pos)>3200)continue;
       let g=persons.get(p);if(!g){g=makePerson(p);persons.set(p,g);}seen.add(p);
       const ud=g.userData,z0=NEAR_Z+0.95+ud.rz*1.7,zd=NEAR_Z+0.3,dd=Math.abs(p.X-p.door),zf=Math.min(1,dd/16);
       let z=lerp(zd,z0,zf),y=PT,rot=Math.PI,op=1;
@@ -564,7 +564,7 @@ export function create(cv,G){
       else if(p.kind==='enter'){z=zd-(1-p.a)*1.1;y=PT+0.1*(1-p.a);rot=Math.PI;}
       else if(p.kind==='toDoor'){const dx=p.door-p.X;rot=Math.atan2(dx*U,zd-z-0.4);}
       else if(p.kind==='away'){rot=Math.atan2(p.dir,0.12);op=p.a;}
-      g.position.set((p.X-S.pos)*U,y,z);g.rotation.set(0,rot,0);
+      g.position.set((p.X-pos)*U,y,z);g.rotation.set(0,rot,0);
       ud.legL.rotation.x=sw;ud.legR.rotation.x=-sw;ud.armL.rotation.set(-sw*0.7,0,0);ud.armR.rotation.set(sw*0.7,0,0);
       if(p.kind==='stumble'){g.rotation.set(0,p.fallDir>0?Math.PI/2:-Math.PI/2,0);g.rotateX(Math.PI*0.44*G.stumblePose(p.t));}
       if(p.kind==='missed'){g.rotation.y=Math.PI+p.fallDir*0.5;if(p.departed){ud.armR.rotation.set(0,0,2.5+(S.reduced?0:Math.sin(p.leaveT*9)*0.35));}else ud.armR.rotation.set(-1.2,0,0.3);}
@@ -575,7 +575,8 @@ export function create(cv,G){
 
   /* ---------- まいフレーム ---------- */
   const cTop=new THREE.Color(),cBot=new THREE.Color(),cFog=new THREE.Color(),cTmp=new THREE.Color(),sunDir=new THREE.Vector3(),camP=new THREE.Vector3(-15,3.3,11.8),camL=new THREE.Vector3(9,2,0),tP=new THREE.Vector3(),tL=new THREE.Vector3();
-  let tf=0,snowF=0,seaF=0,lastT=0,camInit=false,slowN=0,frameN=0,accT=0,lastPos=null;
+  let tf=0,snowF=0,seaF=0,lastT=0,camInit=false,slowN=0,frameN=0,accT=0,lastPos=null,loading=false,loadTotal=1,wasTitle=false,titleT=0;
+  const TITLE_V=850,TITLE_RUN=5000,NOBODY=[];
   function resize(){
     const r=cv.getBoundingClientRect(),w=Math.max(1,Math.round(r.width)),h=Math.max(1,Math.round(r.height));
     if(w===W&&h===H)return;W=w;H=h;renderer.setPixelRatio(pixelRatio);renderer.setSize(w,h,false);
@@ -584,17 +585,29 @@ export function create(cv,G){
   function render(S){
     resize();
     const dt=clamp(S.t-lastT,0,0.1);lastT=S.t;
-    const pos=S.pos,pm=pos*U,k=Math.floor(pos/SP);
+    /* タイトルの あいだは、いまの えきの さきを はしる ようすを 3つの カメラで くりかえし うつす */
+    const title=!!S.title;if(title!==wasTitle){wasTitle=title;camInit=false;titleT=0;}
+    if(title)titleT+=dt;
+    const run=titleT*TITLE_V,cut=Math.floor(run/TITLE_RUN)%3,cutU=(run%TITLE_RUN)/TITLE_RUN;
+    const pos=title?S.pos+1500+run%TITLE_RUN:S.pos,pm=pos*U,k=Math.floor(pos/SP),v=title?TITLE_V:S.v;
     if(S.world!==world){world=S.world;seed=(S.seed|0);clearWorld();camInit=false;farCur='';}
-    if(lastPos!==null&&Math.abs(pos-lastPos)>4000)camInit=false;lastPos=pos;
+    if(!title&&lastPos!==null&&Math.abs(pos-lastPos)>4000)camInit=false;lastPos=pos;
     const pk=S.paint.up+S.paint.low+S.paint.line;if(pk!==paintKey){paintKey=pk;repaint(S.paint);}
-    /* けしきを よういする（1フレームに つくるのは すこしだけ） */
-    {const i0=Math.floor((pos-17500)/CH),i1=Math.floor((pos+9500)/CH);let built=0;const order=[];
-      for(let i=i0;i<=i1;i++)order.push(i);order.sort((a,b)=>Math.abs((a+0.5)*CH-pos)-Math.abs((b+0.5)*CH-pos));
-      for(const i of order){if(!chunks.has(i)){if(built>=(camInit?1:99))break;chunks.set(i,buildChunk(i));built++;}}
+    /* けしきを よういする。たくさん たりない ときは つくり おわるまで えを とめて、すすみぐあいを かえす */
+    {const anchor=S.pos,span=title?TITLE_RUN+1500:0,i0=Math.floor((anchor-17500)/CH),i1=Math.floor((anchor+9500+span)/CH),want=[],sj=[];
+      for(let i=i0;i<=i1;i++)if(!chunks.has(i))want.push(i);want.sort((a,b)=>Math.abs((a+0.5)*CH-pos)-Math.abs((b+0.5)*CH-pos));
+      for(let j=Math.floor((anchor-17000)/SP);j<=Math.ceil((anchor+9500+span)/SP);j++)if(j>=0&&!stations.has(j))sj.push(j);
+      const core=want.filter(i=>(i+1)*CH>pos-9000&&i*CH<pos+7000).length+sj.length;
+      if(!loading&&core>0&&(!camInit||core>=3)){loading=true;loadTotal=want.length+sj.length;}
+      if(loading){
+        const t0=performance.now();
+        do{if(sj.length){const j=sj.shift();stations.set(j,buildStation(j));}else if(want.length){const i=want.shift();chunks.set(i,buildChunk(i));}}while((sj.length||want.length)&&performance.now()-t0<14);
+        const rem=sj.length+want.length;if(rem>0)return 1-rem/Math.max(loadTotal,rem);
+        loading=false;
+      }else if(sj.length)stations.set(sj[0],buildStation(sj[0]));
+      else if(want.length)chunks.set(want[0],buildChunk(want[0]));
       for(const [i,g] of chunks){if(i<i0-1||i>i1+1){scene.remove(g);g.traverse(o=>{if(o.geometry)o.geometry.dispose();});chunks.delete(i);}else g.position.x=i*CHM-pm;}
-      for(let j=Math.floor((pos-17000)/SP);j<=Math.ceil((pos+9500)/SP);j++){if(j<0)continue;if(!stations.has(j))stations.set(j,buildStation(j));}
-      for(const [j,g] of stations){if(Math.abs(j*SP-pos)>30000){scene.remove(g);g.traverse(o=>{if(o.geometry&&o.geometry!==T_BOX)o.geometry.dispose();});g.userData.sign.dispose();g.userData.signMat.dispose();stations.delete(j);}else g.position.x=j*SPM-pm;}}
+      for(const [j,g] of stations){if(Math.abs(j*SP-anchor)>30000){scene.remove(g);g.traverse(o=>{if(o.geometry&&o.geometry!==T_BOX)o.geometry.dispose();});g.userData.sign.dispose();g.userData.signMat.dispose();stations.delete(j);}else g.position.x=j*SPM-pm;}}
     /* そら・ひかり */
     const night=S.night,dayM=S.dayM;cTop.set(S.skyTop);cBot.set(S.skyBot);
     const f=clamp((dayM-330)/780,0,1),el=Math.sin(f*Math.PI),up=dayM>330&&dayM<1110;
@@ -621,12 +634,12 @@ export function create(cv,G){
     const ns=Math.round(pos/SP)*SPM-pm;stLamp.position.set(clamp(ns-6,-60,60),PT+3.6,-3.5);stLamp.intensity=Math.abs(ns)<140?lampK*260:0;
     tunLamp.position.set(8,6.6,-2);tunLamp.intensity=tf*230;
     /* れっしゃ */
-    const lit=S.lit;cars.forEach(c=>{c.mat.emissiveIntensity=lit?1.25:0;});
+    const door=title?0:S.doorAnim,lit=title?(inT>0||night>0.45):S.lit;cars.forEach(c=>{c.mat.emissiveIntensity=lit?1.25:0;});
     headLamp.intensity=lit?900:0;headGlow.material.opacity=lit?0.95:0.12;
-    const dy=(!S.reduced&&S.v>1)?Math.sin(S.t*31)*0.006*(S.v/S.MAXV):0;train.position.y=dy;
-    doorLeaves.forEach(l=>{l.position.x=l.userData.x-S.doorAnim*1.06;l.position.z=1.712+Math.min(1,S.doorAnim*6)*0.035;});
+    const dy=(!S.reduced&&v>1)?Math.sin(S.t*31)*0.006*(v/S.MAXV):0;train.position.y=dy;
+    doorLeaves.forEach(l=>{l.position.x=l.userData.x-door*1.06;l.position.z=1.712+Math.min(1,door*6)*0.035;});
     const ang=-pm/0.43;wheels.forEach(w=>{w.rotation.z=ang;});
-    syncPeople(S);
+    syncPeople(S,title?NOBODY:S.people,pos);
     /* とおくの けしき */
     const sc=G.sceneFor(k),key=sc.far+'|'+(sc.snow?1:0);if(key!==farCur){farCur=key;layer(key);}
     const sea=sc.far==='sea'?1:0,rate=dt/2.6;
@@ -641,17 +654,23 @@ export function create(cv,G){
     groundMat.color.setRGB(1,1,1).lerp(cTmp.set(0xf6f8fb).multiplyScalar(1.9),snowF);
     groundTex.offset.x=fract(pm/20);M.water.normalMap.offset.set(fract(S.t*0.012),fract(S.t*0.02));
     /* カメラ：とまって いる ときは ホームの うしろ ななめから ドアと せんとうを みる。はやく なると まえに まわって ひいて みる */
-    const sf=sstep(0,1,S.v/S.MAXV*1.5),nar=clamp((1.5-camera.aspect)/0.9,0,1);
+    const sf=sstep(0,1,v/S.MAXV*1.5),nar=clamp((1.5-camera.aspect)/0.9,0,1);
     tP.set(lerp(-15,46,sf)+nar*(sf*4-3),lerp(3.3,6.2,sf),lerp(11.8,29,sf)+nar*8);tL.set(lerp(9,-9,sf)-nar*2*sf,lerp(2.0,2.4,sf),0);
-    if(!camInit){camP.copy(tP);camL.copy(tL);camInit=true;}
+    if(title){const u=cutU;
+      if(cut===0){tP.set(45-u*7,1.5+u*0.7,8.6);tL.set(12,2.3,0);}
+      else if(cut===1){tP.set(-26+u*22,8+u*2.5,44+nar*14);tL.set(-16+u*10,2,0);}
+      else{tP.set(-72+u*16,4.4+u*0.5,8.6-u*1.4);tL.set(12,2.5,0);}
+      camP.copy(tP);camL.copy(tL);camInit=true;}
+    else if(!camInit){camP.copy(tP);camL.copy(tL);camInit=true;}
     else{const q=1-Math.exp(-dt*1.1);camP.lerp(tP,q);camL.lerp(tL,q);}
     camera.position.copy(camP);
-    if(!S.reduced&&S.v>1){const a=S.v/S.MAXV*0.022;camera.position.y+=Math.sin(S.t*17.3)*a;camera.position.z+=Math.sin(S.t*11.1)*a*0.6;}
+    if(!S.reduced&&v>1){const a=v/S.MAXV*0.022;camera.position.y+=Math.sin(S.t*17.3)*a;camera.position.z+=Math.sin(S.t*11.1)*a*0.6;}
     camera.lookAt(camL);
     renderer.render(scene,camera);
     /* おもい ときは かいぞうどを さげる */
     accT+=dt;frameN++;if(frameN>=90){const avg=accT/frameN;frameN=0;accT=0;
       if(avg>0.031&&pixelRatio>1){slowN++;if(slowN>=2){pixelRatio=Math.max(1,pixelRatio-0.5);W=0;slowN=0;}}else slowN=0;}
+    return 1;
   }
   function dispose(){
     clearWorld();for(const [,g] of persons){scene.remove(g);}persons.clear();

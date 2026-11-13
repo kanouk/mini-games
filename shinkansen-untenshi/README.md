@@ -27,7 +27,8 @@
 
 - タイトル画面の何もないところを **10回続けてタップ（クリック）** すると、景色を立体で描く3Dモードに切り替わります。もう一度10回タップすると元の2Dに戻ります。選んだモードは次回も引き継がれます。
 - 遊べること・操作・時刻・音は2Dとまったく同じです。変わるのは絵（列車・駅・景色・空・人）と、画面の表示のデザイン（落ち着いた配色）だけです。警笛や車掌さんの吹き出しは3Dでは出しません（音は鳴ります）。
-- 3Dモードは `shinkansen-3d.js` と `vendor/three.module.min.js`（[three.js](https://threejs.org/) r170、MITライセンス）を、切り替えたときにだけ読み込みます。そのため **HTTPサーバー経由（GitHub Pages など）で開いたときだけ** 使えます。ファイルを直接開いた場合や WebGL が使えない端末では、2Dのまま遊べます。
+- 3Dモードの間はタイトル画面も3Dになり、走る列車を3つのカメラで順に映します。
+- 3Dモードは `shinkansen-3d.js` と `../vendor/three/three.module.min.js`（[three.js](https://threejs.org/) r170、MITライセンス。西武線ゲームと共用）を、切り替えたときにだけ読み込みます。読み込みと景色の準備の間は進み具合のバーを出します。そのため **HTTPサーバー経由（GitHub Pages など）で開いたときだけ** 使えます。ファイルを直接開いた場合や WebGL が使えない端末では、2Dのまま遊べます。
 - 動きが重い端末では、自動で描画の解像度を下げます。
 
 ## ファイル
@@ -36,7 +37,7 @@
 |---|---|
 | `shinkansen.html` | ゲーム本体（HTML・CSS・JavaScriptを1ファイルにまとめたもの） |
 | `shinkansen-3d.js` | 3Dモードの描画（ゲームの進行は `shinkansen.html` のまま） |
-| `vendor/three.module.min.js` | three.js r170（3D描画ライブラリ。ライセンスは `vendor/three.LICENSE`） |
+| `../vendor/three/three.module.min.js` | three.js r170（3D描画ライブラリ。ライセンスは同じフォルダの `LICENSE`） |
 | `tests/schedule.test.js` | 時刻のルールを確かめる自動テスト |
 | `tests/passengers.browser.html` | つまずき・見送り・次駅への運転を確かめるブラウザテスト |
 
