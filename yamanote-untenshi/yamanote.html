@@ -473,6 +473,8 @@ li:first-child>.strow::before{top:50%}li:last-child>.strow::before{bottom:50%}
         <section class="card">
           <h3>むき</h3>
           <div class="types" id="types" role="group" aria-label="むき"></div>
+          <h3 class="sub">ゆきさき</h3>
+          <div class="types" id="dests" role="group" aria-label="ゆきさき"></div>
           <div class="ends">
             <button class="endcard" id="endFrom" type="button" data-side="from"><small>のる えき</small><b></b><span></span></button>
             <button class="swap" id="swapBtn" type="button" aria-label="のる えきと おりる えきを いれかえる" title="いれかえる"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 8h13l-3-3M19 16H6l3 3"/></svg></button>
@@ -566,6 +568,10 @@ const TRANSFER={
  '大崎':['りんかい線','りんかいせん'],
  '品川':['新幹線・京急線','しんかんせん、けいきゅうせん']
 };
+/* とまりの でんしゃ（しゃこに はいる でんしゃ）が おわる えき。どちらの むきにも ある */
+const TERMINALS=['池袋','大崎'];
+/* しゅうてんで いきさきを かえて でなおすまでの じかん（ふん・ゲームの めやす） */
+const TERM_WAIT=3;
 /* ほうめんの めじるしに なる おおきな えき */
 const HUBS=['東京','上野','池袋','新宿','渋谷','品川'];
 
@@ -649,12 +655,14 @@ function serOf(id){return SERIES[id]||SERIES[Object.keys(SERIES)[0]];}
 const DWELL=0.5;
 function gapX(km){return Math.max(5200,Math.min(17000,3600+2800*km));}
 class Trip{
-  constructor(R,a,b,start,ti,ser){
+  constructor(R,a,b,start,ti,ser,term){
     const N=R.st.length;
     if(!Number.isInteger(a)||a<0||a>=N)a=0;if(!Number.isInteger(b)||b<0||b>=N)b=a;
     this.line=R;this.a=a;this.b=b;const T=typesOf(R);
     if(!Number.isInteger(ti)||!T[ti])ti=0;
     this.ok=true;this.ti=ti;this.ri=ti;this.dir=T[ti].dir;
+    /* term：おりる えき（池袋・大崎）が しゅうてんの「とまり」の でんしゃ。しゅうてんの あとは ふつうの でんしゃとして まわる */
+    this.term=!!term&&a!==b&&TERMINALS.includes(R.st[b][0]);
     const sl=T[ti].ser||[];this.ser=sl.includes(ser)?ser:(sl[0]||Object.keys(SERIES)[0]);
     this._lt=null;this.buildX();this.setStart(start);}
   get type(){return typesOf(this.line)[this.ti];}
@@ -669,8 +677,11 @@ class Trip{
   st(k){return this.line.st[this.idx(k)];}
   isEnd(){return false;}
   isGoal(k){return k===this.goalK;}
+  /* しゅうてん（とまりの でんしゃが つく ところ） */
+  isTerm(k){return this.term&&k===this.goalK;}
   /* k から すすむ さきの「○○・○○方面」（k より さきの おおきな えき 2つ） */
-  dest(k){const out=[];for(let j=k+1;out.length<2&&j<=k+this.len;j++){const n=this.st(j);if(HUBS.includes(n[0]))out.push(n);}
+  dest(k){if(this.term&&k<this.goalK){const n=this.st(this.goalK),d=[n[0],n[1],n[2],'',0,0,0];d.term=true;return d;}
+    const out=[];for(let j=k+1;out.length<2&&j<=k+this.len;j++){const n=this.st(j);if(HUBS.includes(n[0]))out.push(n);}
     return [out.map(n=>n[0]).join('・')+'方面',out.map(n=>n[1]).join('・')+' ほうめん',out.map(n=>n[2]).join(' and '),'',0,0,0];}
   segI(k){return this.dir>0?this.idx(k):this.idx(k+1);}
   seg(k){return this.line.seg[this.segI(k)];}
@@ -690,8 +701,10 @@ class Trip{
   /* はしる じかん：4:30〜24:00 に でる（ゲーム用の めやす） */
   firstStart(){return 270;}
   lastStart(){return 1440;}
-  arrMin(k){if(k<=0)return null;const n1=this.len,L=Math.floor((k-1)/n1);return this.legStart(L)+this.legTimes().a[k-L*n1];}
-  depMin(k){const n1=this.len,L=Math.floor(k/n1),j=k-L*n1;return this.legStart(L)+(j===0?0:this.legTimes().d[j]);}
+  /* しゅうてんで まつ じかん（しゅうてんを でた あとの じこくに たす） */
+  termWait(k,dep){return this.term&&(dep?k>=this.goalK:k>this.goalK)?TERM_WAIT:0;}
+  arrMin(k){if(k<=0)return null;const n1=this.len,L=Math.floor((k-1)/n1);return this.legStart(L)+this.legTimes().a[k-L*n1]+this.termWait(k,false);}
+  depMin(k){const n1=this.len,L=Math.floor(k/n1),j=k-L*n1;return this.legStart(L)+(j===0?0:this.legTimes().d[j])+this.termWait(k,true);}
   /* がめんの うえの いち（1しゅうで くりかえす） */
   buildX(){const P=this.len;this._xs=[0];this._heights=[];for(let k=0;k<P;k++){
     this._xs.push(this._xs[k]+gapX(this.dist(k)));this._heights.push(elevationSection(this.line,this.idx(k),this.idx(k+1)));}this._D=this._xs[P];}
@@ -791,7 +804,7 @@ function inTunnel(x){const f=feat(kAt(x));return x>=f.t0&&x<=f.t1;}
 function nearStation(x,m){const k=kNear(x);return Math.abs(x-X(k))<m;}
 
 /* ---------- 保存 ---------- */
-function save(){try{localStorage.setItem('yamanote',JSON.stringify({auto,soundOn,mapOn,tripA:trip.a,tripB:trip.b,ti:trip.ti,ser:trip.ser,lineId:line.id}));}catch(e){}}
+function save(){try{localStorage.setItem('yamanote',JSON.stringify({auto,soundOn,mapOn,tripA:trip.a,tripB:trip.b,ti:trip.ti,ser:trip.ser,term:trip.term,lineId:line.id}));}catch(e){}}
 function load(){try{return JSON.parse(localStorage.getItem('yamanote')||'{}')||{};}catch(e){return{};}}
 
 /* ---------- おと ---------- */
@@ -1004,15 +1017,22 @@ function typeEn(ty,k){return 'the Yamanote Line train bound for '+dest(k)[2];}
 function xferJa(n){const x=TRANSFER[n[0]];return x?x[1]+'は、おのりかえ です。':'';}
 function xferLed(n){const x=TRANSFER[n[0]];return x?'  '+x[0]+'は おのりかえ です':'';}
 function goalSoon(k){return trip.isGoal(k);}
+/* とまりの でんしゃの あんない */
+function termJa(){const n=st(trip.goalK);return 'この でんしゃは、'+n[1]+'どまり です。';}
 function startRunning(){
   const k=kNear(pos),tg=nextStop(k),nx=st(tg),d=dest(k),ty=tyAt(k);
   depLog[k]=delay;target=tg;announced=false;state='running';v=Math.max(v,40);markPlatformDeparture(k);spawnWaiting(target);
   carChime();
-  const goal=goalSoon(tg)?'つぎは ゴールの えき です。':'';
-  if(k===0){
+  const goal=goalSoon(tg)?(trip.isTerm(tg)?'つぎは しゅうてんの、ゴールの えき です。':'つぎは ゴールの えき です。'):'';
+  if(trip.isTerm(k)){
+    /* しゅうてんで いきさきを かえて でなおす */
+    announce('おまたせ いたしました。この でんしゃは、'+st(k)[1]+'から、やまのてせん、'+typeJa(ty)+'、'+d[1]+'ゆき として はっしゃ します。つぎは、'+nx[1]+'です。',
+      'This is '+typeEn(ty,k)+'. The next station is '+enSt(nx)+'.',900);
+    led('この でんしゃは '+st(k)[0]+'から 山手線 '+ty.k+' '+d[0]+'ゆき に なりました  つぎは '+nx[0]+' '+fmt(arrMin(tg)+delay)+'着  Next '+enSt(nx));
+  }else if(k===0){
     announce('きょうも やまのてせんを ごりよう いただきまして、ありがとうございます。この でんしゃは、やまのてせん、'+typeJa(ty)+'、'+d[1]+'ゆき です。つぎは、'+nx[1]+'です。'+goal,
       'This is '+typeEn(ty,k)+'. The next station is '+enSt(nx)+'.',900);
-    led('きょうも 山手線を ごりよう いただきまして ありがとうございます  この でんしゃは 山手線 '+ty.k+' '+d[0]+'ゆき です  つぎは '+nx[0]+' '+fmt(arrMin(tg)+delay)+'着  Next '+enSt(nx));
+    led('きょうも 山手線を ごりよう いただきまして ありがとうございます  この でんしゃは 山手線 '+ty.k+' '+d[0]+'ゆき です'+(d.term?'（'+d[0]+'どまり）':'')+'  つぎは '+nx[0]+' '+fmt(arrMin(tg)+delay)+'着  Next '+enSt(nx));
   }else{
     announce('つぎは、'+nx[1]+'です。'+goal,'The next station is '+enSt(nx)+'.',900);
     led('つぎは '+nx[0]+'（'+nx[1]+'） '+fmt(arrMin(tg)+delay)+'着  Next '+enSt(nx)+'   この でんしゃは 山手線 '+ty.k+' '+d[0]+'ゆき です');
@@ -1022,6 +1042,10 @@ function approach(){
   const nx=st(target);
   carChime();
   const goal=trip.isGoal(target);
+  if(trip.isTerm(target)){
+    announce('まもなく、しゅうてん、'+nx[1]+'です。'+termJa()+xferJa(nx)+'おわすれものの ないよう ごちゅうい ください。','We will soon arrive at '+enSt(nx)+', the last stop.',900);
+    led('まもなく しゅうてん '+nx[0]+' です  この でんしゃは '+nx[0]+'どまり です'+xferLed(nx)+'  Arriving at '+nx[2]+', the last stop');
+    return;}
   announce('まもなく、'+nx[1]+'です。'+xferJa(nx)+(goal?'おわすれものの ないよう ごちゅうい ください。':''),'We will soon be arriving at '+enSt(nx)+'.',900);
   led('まもなく '+nx[0]+'（'+nx[1]+'） です'+xferLed(nx)+'  Arriving at '+nx[2]);
 }
@@ -1035,6 +1059,10 @@ function arrive(){
   v=0;pos=X(target);state='stopped';stopT=0;doorAnim=0;doorOpening=false;doorsServed=false;spawnAlight(target);stationReached(target);const rec=justRecovered;justRecovered=false;
   pinpon();
   const n=st(target),goal=trip.isGoal(target),lap=Math.floor(target/trip.len);
+  if(trip.isTerm(target)){
+    announce(n[1]+'、'+n[1]+'、しゅうてん です。この でんしゃは、ここまで です。ゴールです。おつかれさまでした。この あと でんしゃは、いきさきを かえて、ふたたび やまのてせんを まわります。',null,600,true);
+    led(n[0]+'（'+n[1]+'） '+n[2]+'   しゅうてん です  ゴール！ おつかれさまでした  この あと '+fmt(depMin(target)+delay)+'に いきさきを かえて でます');
+    showBanner(n[0]+' しゅうてん ゴール！',fmt(arrMin(target)+delay),delay>0?delay+'ふん おくれ':'');return;}
   /* のる えきに もどって きた ときは「いっしゅう」 */
   const round=target>0&&target%trip.len===0;
   announce(n[1]+'、'+n[1]+'です。'+(rec?'この でんしゃは、おくれを とりもどし、ていじに とうちゃく いたしました。':'')+(goal?(round?'やまのてせんを いっしゅう しました。':'')+'ゴールです。おつかれさまでした。でんしゃは このまま やまのてせんを まわります。':''),null,600,true);
@@ -1664,7 +1692,7 @@ function syncUI(){
   if(label!==lastLabel){
     lastLabel=label;
     const tb=$('typeBadge');tb.textContent=ty0.k;tb.style.setProperty('--tc',ty0.c);
-    $('lineName').textContent=trip.baseAt(sg).name;$('maxKmh').textContent='さいこう '+segKmh(sg);$('destName').textContent=d[0];
+    $('lineName').textContent=trip.baseAt(sg).name;$('maxKmh').textContent='さいこう '+segKmh(sg);$('destName').textContent=d[0]+(d.term?'ゆき':'');
     $('fromName').textContent=st(fk)[0];$('toName').textContent=st(fk+1)[0];
     const S0=STATES[state];goBtn.textContent=manualWait?'ドアを おしてね':(busy&&S0.busyLabel?S0.busyLabel:S0.label);
     $('banner').hidden=!(S0.atSt||state==='estop'||state==='estopWait');
@@ -1804,13 +1832,13 @@ function setTrip(t,speak){
   pos=0;v=0;state='stopped';stopT=0;doorAnim=1;doorOpening=false;doorsServed=true;announced=false;holders.clear();
   const n=st(0),ty0=trip.type,g=st(trip.goalK);
   showBanner(n[0]+' はつ',fmt(depMin(0)),'しゅっぱつ！を おしてね');
-  led('山手線に ようこそ  '+ty0.k+' '+dest(0)[0]+'ゆき  '+n[0]+'（'+n[1]+'） '+fmt(depMin(0))+'はつ  ゴールは '+(trip.a===trip.b?'いっしゅう して '+g[0]:g[0])+'  しゃりょうは '+SER().name);
+  led('山手線に ようこそ  '+ty0.k+' '+dest(0)[0]+'ゆき'+(trip.term?'（'+dest(0)[0]+'どまり）':'')+'  '+n[0]+'（'+n[1]+'） '+fmt(depMin(0))+'はつ  ゴールは '+(trip.a===trip.b?'いっしゅう して '+g[0]:g[0])+'  しゃりょうは '+SER().name);
   lastLabel='';mapBase=null;people=[];spawnWaiting(0);
   if(speak){pinpon();announce('やまのてせん、'+typeJa(ty0)+'、'+dest(0)[1]+'ゆき です。',null,500,true);}
 }
 /* ---------- のる でんしゃを きめる がめん ---------- */
 let draft=null,side='from';
-function draftTrip(){const t=new Trip(draft.line,draft.a,draft.b,draft.start,draft.ti,draft.ser);draft.start=t.start;return t;}
+function draftTrip(){const t=new Trip(draft.line,draft.a,draft.b,draft.start,draft.ti,draft.ser,draft.term);draft.start=t.start;return t;}
 function drawTrip(){
   const L=draft.line,N=L.st.length,T=typesOf(L);
   const dt=draftTrip(),ty0=T[draft.ti],round=draft.a===draft.b;
@@ -1818,13 +1846,20 @@ function drawTrip(){
   $('tripPanel').style.setProperty('--lc',L.c);$('tripTitle').textContent=L.name;
   const ef=$('endFrom'),et=$('endTo');
   ef.querySelector('b').textContent=L.st[draft.a][0];ef.querySelector('span').textContent=L.st[draft.a][1];
-  et.querySelector('b').textContent=round?'いっしゅう':L.st[draft.b][0];et.querySelector('span').textContent=round?L.st[draft.b][0]+'に もどる':L.st[draft.b][1];
+  et.querySelector('b').textContent=round?'いっしゅう':L.st[draft.b][0];et.querySelector('span').textContent=round?L.st[draft.b][0]+'に もどる':dt.term?L.st[draft.b][0]+'どまり':L.st[draft.b][1];
   /* むき（内回り・外回り）の ボタン */
   const tw=$('types');tw.textContent='';
   T.forEach((t,i)=>{const b=document.createElement('button');b.type='button';b.style.setProperty('--tc',t.c);
     b.setAttribute('aria-pressed',i===draft.ti);
     const n=document.createElement('b');n.textContent=t.k;const sm=document.createElement('small');sm.textContent=t.note;b.append(n,sm);
     b.addEventListener('click',()=>{draft.ti=i;drawTrip();});tw.appendChild(b);});
+  /* ゆきさき：ぐるぐる まわる でんしゃ／池袋・大崎で おわる「とまり」の でんしゃ */
+  const dw=$('dests');dw.textContent='';
+  [[null,'ぐるぐる まわる','ゴールの あとも そのまま まわる']].concat(TERMINALS.map(n=>[n,n+'ゆき',n+'どまり・しゃこに はいる でんしゃ'])).forEach(([n,label,note])=>{
+    const b=document.createElement('button');b.type='button';b.style.setProperty('--tc',n?'#c0392b':ty0.c);
+    const i=n?stIndex(L,n):-1,on=n?dt.term&&draft.b===i:!dt.term;b.setAttribute('aria-pressed',on);b.disabled=!!n&&draft.a===i;
+    const x=document.createElement('b');x.textContent=label;const sm=document.createElement('small');sm.textContent=b.disabled?'いま '+n+'に いるよ':note;b.append(x,sm);
+    b.addEventListener('click',()=>{if(n){draft.b=i;draft.term=true;}else draft.term=false;drawTrip();});dw.appendChild(b);});
   /* しゃりょうの ボタン */
   const sw=$('sers');sw.textContent='';
   ty0.ser.forEach(id=>{const S=serOf(id),b=document.createElement('button');b.type='button';
@@ -1842,10 +1877,10 @@ function drawTrip(){
     const d=document.createElement('span');d.className='dot';const nm=document.createElement('span');nm.className='nm';
     const k=document.createElement('b');const nb=document.createElement('span');nb.className='num';nb.style.setProperty('--nc',numColor(n[3]));nb.textContent=n[3];k.append(nb,n[0]);
     const sm=document.createElement('small');sm.textContent=n[1];nm.append(k,sm);b.append(d,nm);
-    if(j===0||(!round&&j===goal)){const t=document.createElement('span');t.className='tag';t.textContent=j===0?(round?'のる・ゴール':'のる'):'ゴール';b.appendChild(t);}
+    if(j===0||(!round&&j===goal)){const t=document.createElement('span');t.className='tag';t.textContent=j===0?(round?'のる・ゴール':'のる'):(dt.term?'しゅうてん':'ゴール');b.appendChild(t);}
     b.addEventListener('click',()=>{
       if(side==='from'){draft.a=i;side='to';}
-      else draft.b=i;
+      else{if(draft.b!==i)draft.term=false;draft.b=i;}
       drawTrip();});
     li.appendChild(b);ul.appendChild(li);}
   ul.scrollTop=flip?0:keepScroll;
@@ -1854,17 +1889,17 @@ function drawTrip(){
   $('ttTime').textContent=fmt(draft.start);
   $('ttRange').textContent='しはつ '+fmt(r.f)+' ／ さいごの しゅっぱつ '+fmt(r.l)+'（ゲームの めやす）';
   $('sumDep').textContent=fmt(r.d);$('sumFrom').textContent=L.st[draft.a][0]+' はつ';
-  $('sumArr').textContent=fmt(r.ar);$('sumTo').textContent=L.st[draft.b][0]+(round?' いっしゅう':' ゴール');
-  const mins=Math.round(r.ar-r.d);$('sumMeta').textContent=ty0.k+' ・ '+dt.dest(0)[0]+' ・ やく '+(mins>=60?Math.floor(mins/60)+'じかん':'')+(mins%60)+'ふん ・ '+(r.n-1)+'えき すすむ';
+  $('sumArr').textContent=fmt(r.ar);$('sumTo').textContent=L.st[draft.b][0]+(round?' いっしゅう':dt.term?' しゅうてん':' ゴール');
+  const mins=Math.round(r.ar-r.d);$('sumMeta').textContent=ty0.k+' ・ '+dt.dest(0)[0]+(dt.term?'ゆき':'')+' ・ やく '+(mins>=60?Math.floor(mins/60)+'じかん':'')+(mins%60)+'ふん ・ '+(r.n-1)+'えき すすむ';
   document.querySelectorAll('.tstep').forEach(b=>{const d=+b.dataset.d;b.disabled=d<0?draft.start<=r.f:draft.start>=r.l;});
 }
 $('endFrom').addEventListener('click',()=>{side='from';drawTrip();});
 $('endTo').addEventListener('click',()=>{side='to';drawTrip();});
 /* いれかえ：おなじ みちを ぎゃくに はしる（むきも かわる） */
-$('swapBtn').addEventListener('click',()=>{[draft.a,draft.b]=[draft.b,draft.a];draft.ti=draft.ti?0:1;drawTrip();});
+$('swapBtn').addEventListener('click',()=>{[draft.a,draft.b]=[draft.b,draft.a];draft.ti=draft.ti?0:1;draft.term=false;drawTrip();});
 function defTrip(l){const d=DEF[l.id];if(!d)return{a:0,b:0,ti:0};return{a:stIndex(l,d[0]),b:stIndex(l,d[1]),ti:d[2]};}
 function openTrip(l){
-  draft={line:l,a:trip.a,b:trip.b,start:trip.start,ti:trip.ti,ser:trip.ser};
+  draft={line:l,a:trip.a,b:trip.b,start:trip.start,ti:trip.ti,ser:trip.ser,term:trip.term};
   side='from';openPanel('tripPanel');$('stList').scrollTop=0;drawTrip();
 }
 function setStart(m){draft.start=m;drawTrip();}
@@ -1881,7 +1916,7 @@ $('tripGo').addEventListener('click',()=>{const t=draftTrip();ensureAudio();setT
 /* じこくひょう：いま はしって いる 1しゅうぶん。ゴールの えきに しるし */
 function renderTT(){
   const g=trip.goalK;
-  $('ttSum').textContent=trip.type.k+'　'+fmt(depMin(0))+' '+st(0)[0]+'はつ → '+fmt(arrMin(g))+' '+st(g)[0]+(trip.a===trip.b?' いっしゅう':' ゴール')+(delay>0?'（いま やく'+delay+'ふん おくれ）':'');
+  $('ttSum').textContent=trip.type.k+'　'+fmt(depMin(0))+' '+st(0)[0]+'はつ → '+fmt(arrMin(g))+' '+st(g)[0]+(trip.a===trip.b?' いっしゅう':trip.term?' しゅうてん（'+st(g)[0]+'どまり）':' ゴール')+(delay>0?'（いま やく'+delay+'ふん おくれ）':'');
   const cur=atStation()?kNear(pos):target-1;
   const L=Math.floor(Math.max(0,cur)/legLen()),k0=L*legLen(),hi=atStation()?cur:target;
   const tb=$('ttBody');tb.textContent='';
@@ -1914,7 +1949,7 @@ function hereK(){return moving()?target-1:kNear(pos);}
 function stopsAhead(){const k=hereK(),g=trip.goalK,end=k<g?g:(Math.floor(k/legLen())+1)*legLen(),out=[];for(let j=k+1;j<=end;j++)out.push(st(j));return out;}
 const ANN=[
  {t:'つぎの えき',d:'つぎに とまる えきと じこく',f:()=>{const x=nextInfo();return ['つぎは、'+x.n[1]+'です。'+x.n[1]+'には、'+fmtJa(x.t)+'に つきます。'+xferJa(x.n),'The next station is '+enSt(x.n)+'.','つぎは '+x.n[0]+' '+fmt(x.t)+'着'+xferLed(x.n)+'  Next '+enSt(x.n)];}},
- {t:'ゆきさき',d:'むきと ほうめん',f:()=>{const k=hereK(),d=dest(k),ty=tyAt(k);return ['この でんしゃは、やまのてせん、'+typeJa(ty)+'、'+d[1]+'ゆき です。','This is '+typeEn(ty,k)+'.','この でんしゃは 山手線 '+ty.k+' '+d[0]+'ゆき です'];}},
+ {t:'ゆきさき',d:'むきと ほうめん',f:()=>{const k=hereK(),d=dest(k),ty=tyAt(k);return ['この でんしゃは、やまのてせん、'+typeJa(ty)+'、'+d[1]+'ゆき です。'+(d.term?termJa():''),'This is '+typeEn(ty,k)+'.','この でんしゃは 山手線 '+ty.k+' '+d[0]+'ゆき です'];}},
  {t:'とまる えき',d:'ゴールまでの えきを ぜんぶ',f:()=>{const s=stopsAhead();
    return ['やまのてせんは、ぜんぶの えきに とまります。この さきは、'+s.map(x=>x[1]).join('、')+'です。',null,'山手線は 各駅に とまります  '+s.map(x=>x[0]).join(' ・ ')];}},
  {t:'ゆうせんせき',d:'せきを ゆずって ね',f:()=>['ゆうせんせきを ひつようと されている おきゃくさまが いらっしゃいましたら、おせきを おゆずり ください。','Please offer your seat to those who need it.','ゆうせんせきを ひつようと されている かたに おせきを おゆずり ください']},
@@ -2032,11 +2067,11 @@ window.addEventListener('resize',()=>{resize();if(r3d)r3d.resize();});
 function start(data){
   const d=Object.assign({},load(),data||{});
   auto=!!d.auto;let startMin;{const hs=data&&data.startMin;if(Number.isInteger(hs)&&hs>=270&&hs<=1440)startMin=hs;else{const now=new Date();startMin=Math.round((now.getHours()*60+now.getMinutes())/5)*5;}}if(typeof d.mapOn==='boolean')mapOn=d.mapOn;applyMap();if(typeof d.soundOn==='boolean')soundOn=d.soundOn;
-  const R=ROUTES.find(l=>l.id===d.lineId)||ROUTES[0],df=defTrip(R);const t=new Trip(R,d.lineId?d.tripA:df.a,d.lineId?d.tripB:df.b,startMin,d.lineId?d.ti:df.ti,d.ser);
+  const R=ROUTES.find(l=>l.id===d.lineId)||ROUTES[0],df=defTrip(R);const t=new Trip(R,d.lineId?d.tripA:df.a,d.lineId?d.tripB:df.b,startMin,d.lineId?d.ti:df.ti,d.ser,d.lineId?d.term:false);
   setTrip(t,false);
   autoBtn.setAttribute('aria-pressed',auto);applySound();applyColor();
   const hot=window.claude&&window.claude.hot;
-  if(hot&&hot.snapshot){try{hot.snapshot(()=>({auto,soundOn,mapOn,startMin:trip.start,tripA:trip.a,tripB:trip.b,ti:trip.ti,ser:trip.ser,lineId:line.id}));}catch(e){}}
+  if(hot&&hot.snapshot){try{hot.snapshot(()=>({auto,soundOn,mapOn,startMin:trip.start,tripA:trip.a,tripB:trip.b,ti:trip.ti,ser:trip.ser,term:trip.term,lineId:line.id}));}catch(e){}}
   resize();
   try{if(localStorage.getItem('yamanote3d')==='1')set3d(true,true);}catch(e){}
   if(document.fonts&&document.fonts.load){document.fonts.load('800 28px "M PLUS Rounded 1c"').catch(()=>{});}

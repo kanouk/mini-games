@@ -7,8 +7,8 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'yamanote.html'), 'utf8'
 const js = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const cut = (from, to) => js.slice(js.indexOf(from), js.indexOf(to));
 const lib = new Function(cut('/* ===== データ', '/* ちず用の いち') +
-  'return {BASE,ROUTES,TYPES,SERIES,DEF,Trip,NUMC,SCENE,CITY,RIVER,CROSSING,ELEVATED,LOOP_KM,TRANSFER,HUBS,pk2,elevationAt,platformDoorStatus,stIndex};')();
-const { BASE, ROUTES, TYPES, SERIES, DEF, Trip, NUMC, SCENE, CITY, RIVER, CROSSING, LOOP_KM, TRANSFER, HUBS, pk2, elevationAt, platformDoorStatus, stIndex } = lib;
+  'return {TERMINALS,TERM_WAIT,BASE,ROUTES,TYPES,SERIES,DEF,Trip,NUMC,SCENE,CITY,RIVER,CROSSING,ELEVATED,LOOP_KM,TRANSFER,HUBS,pk2,elevationAt,platformDoorStatus,stIndex};')();
+const { TERMINALS, TERM_WAIT, BASE, ROUTES, TYPES, SERIES, DEF, Trip, NUMC, SCENE, CITY, RIVER, CROSSING, LOOP_KM, TRANSFER, HUBS, pk2, elevationAt, platformDoorStatus, stIndex } = lib;
 
 let pass = 0, fail = 0;
 function check(name, ok, info) { if (ok) pass++; else { fail++; console.log('NG', name, info === undefined ? '' : info); } }
@@ -109,9 +109,26 @@ HUBS.forEach(n => check('hub ' + n, stIndex(R, n) >= 0));
 S.forEach((s, i) => { const t = new Trip(R, i, i, 600, 0), st = platformDoorStatus(t, 0);
   check('platform doors ' + s[0], ['新宿', '渋谷'].includes(s[0]) ? st === 'none' : st === 'active', st); });
 
-// 8) はじめの でんしゃ
+// 8) 池袋止まり・大崎止まり：行き先は終点の駅名。終点で少し待ってから、ふつうの方面表示で回り続ける
+check('terminals', TERMINALS.join(',') === '池袋,大崎' && TERM_WAIT > 0);
+const ike = stIndex(R, '池袋'), osaki = stIndex(R, '大崎'), sj = stIndex(R, '新宿');
+const toIke = new Trip(R, sj, ike, 600, 1, 'E235', true);
+check('新宿 外回り 池袋ゆき', toIke.term && toIke.goalK === 4 && toIke.st(4)[0] === '池袋' && toIke.isTerm(4) && !toIke.isTerm(3));
+check('止まりの行き先は駅名', toIke.dest(0)[0] === '池袋' && toIke.dest(0).term && toIke.dest(3)[0] === '池袋', toIke.dest(0)[0]);
+check('終点を出たら方面表示に戻る', toIke.dest(4)[0] === '上野・東京方面' && !toIke.dest(4).term, toIke.dest(4)[0]);
+check('終点で待つ時間', near(toIke.depMin(4) - toIke.arrMin(4), DWELL_CHECK(toIke) + TERM_WAIT, 1e-9) && near(toIke.arrMin(4) - new Trip(R, sj, ike, 600, 1).arrMin(4), 0, 1e-9));
+check('終点のあとの時刻も待った分だけ遅れる', near(toIke.arrMin(10) - new Trip(R, sj, ike, 600, 1).arrMin(10), TERM_WAIT, 1e-9));
+const toOsaki = new Trip(R, tokyo, osaki, 600, 1, 'E235', true);
+check('東京 外回り 大崎ゆき', toOsaki.term && toOsaki.st(toOsaki.goalK)[0] === '大崎' && toOsaki.dest(0)[0] === '大崎');
+check('内回りでも大崎ゆきを選べる', new Trip(R, tokyo, osaki, 600, 0, 'E235', true).term);
+check('池袋・大崎以外は止まりにしない', !new Trip(R, tokyo, sj, 600, 0, 'E235', true).term);
+check('いっしゅうは止まりにしない', !new Trip(R, ike, ike, 600, 0, 'E235', true).term);
+check('ふつうの電車は止まりではない', !inner.term && !inner.isTerm(inner.goalK));
+
+// 9) はじめの でんしゃ
 const df = DEF.yamanote;
 check('default trip', stIndex(R, df[0]) >= 0 && stIndex(R, df[1]) >= 0 && T[df[2]]);
 
+function DWELL_CHECK(t) { return t.depMin(1) - t.arrMin(1); }
 console.log(`data: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

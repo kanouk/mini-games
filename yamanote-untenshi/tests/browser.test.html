@@ -23,7 +23,7 @@ async function mount(width,height){
     get state(){return {state,pos,target,doorAnim,people,busy:paxBusy(),elevation:elevationAt(trip,pos),clipCalls,k:kNear(pos),name:st(kNear(pos))[0],goalK:trip.goalK,lap:trip.len};},
     get visual(){return {gateOpening,crewStations};},
     get seen(){return seen},get crossings(){return crossings},
-    trip(from,to,dir){const R=ROUTES[0];setTrip(new Trip(R,stIndex(R,from),stIndex(R,to),600,dir,'E235'),false);seen=new Set();crossings=new Set();},
+    trip(from,to,dir,term){const R=ROUTES[0];setTrip(new Trip(R,stIndex(R,from),stIndex(R,to),600,dir,'E235',term),false);seen=new Set();crossings=new Set();},
     force(){people.forEach(p=>p.willTrip=false);const p=pickStumbler(people,()=>0);if(!p)throw Error('No candidate');p.willTrip=true;return p;},
     step(seconds){for(let i=0;i<Math.ceil(seconds/.05);i++){gateOpening=undefined;crewStations=[];this.tick=(this.tick||1000)+50;frame(this.tick);
       if(state==='stopped')seen.add(st(kNear(pos))[0]);
@@ -77,7 +77,21 @@ document.querySelector('#run').onclick=async()=>{
       for(let i=0;i<40000&&!atGoal;i++){qa.step(.05);if(qa.state.state==='stopped'&&qa.state.k===16&&label(d).includes('ゴール'))atGoal=true;}
       check(atGoal&&qa.state.name==='新宿','内回り 東京→新宿で新宿がゴールになる');
       check(d.querySelector('#ledText').textContent.includes('ゴール'),'車内表示にゴールが出る');
+      /* 池袋止まり：新宿から外回り。行き先は「池袋ゆき」、終点で「しゅうてん」、そのあと方面表示で回り続ける */
+      qa.trip('新宿','池袋',1,true);qa.step(.05);
+      check(d.querySelector('#destName').textContent==='池袋ゆき','池袋止まりは「池袋ゆき」と表示する');
+      let atTerm=false;
+      for(let i=0;i<20000&&!atTerm;i++){qa.step(.05);if(qa.state.state==='stopped'&&qa.state.k===4&&label(d).includes('しゅうてん'))atTerm=true;}
+      check(atTerm&&qa.state.name==='池袋','池袋に「しゅうてん」で着く');
+      check(d.querySelector('#ledText').textContent.includes('しゅうてん'),'車内表示に終点と出る');
+      let left=false;for(let i=0;i<4000&&!left;i++){qa.step(.05);if(qa.state.state==='running')left=true;}
+      check(left&&d.querySelector('#destName').textContent==='上野・東京方面','終点のあとは行き先を変えて上野・東京方面として走る');
+      check(d.querySelector('#ledText').textContent.includes('ゆき に なりました'),'行き先が変わったことを車内表示で知らせる');
+      if(params.get('preview')==='terminal')return;
+      qa.trip('東京','大崎',1,true);qa.step(.05);
+      check(d.querySelector('#destName').textContent==='大崎ゆき','大崎止まりは「大崎ゆき」と表示する');
       const rect=d.querySelector('#doorBtn').getBoundingClientRect();
+
       check(rect.left>=0&&rect.right<=width&&rect.height>=44,'ドアボタンが画面内に収まりタッチできる');
       check(errors.length===0,'実行時エラーなし');
       localStorage.removeItem(key);
