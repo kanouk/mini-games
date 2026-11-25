@@ -5,7 +5,7 @@
 <title>えきめい あいうえお：ブラウザテスト</title>
 <style>body{font:16px system-ui;margin:20px;background:#edf5ff;color:#14213d}button{min-height:72px;padding:16px;font:inherit}#result{white-space:pre-wrap}iframe{display:block;border:2px solid #14213d;max-width:none;margin-top:20px}#result.failed{color:#a21424}</style>
 <h1>えきめい あいうえお：ブラウザテスト</h1>
-<p>本番HTMLを隔離したテスト用保存キーで実行します。画面遷移のタイマーを短縮し、実際のSVGパスに沿ったPointerEventで全218マスを確認します。</p>
+<p>本番HTMLを隔離したテスト用保存キーで実行します。画面遷移のタイマーを短縮し、実際のSVGパスに沿ったPointerEventで全323マスを確認します。</p>
 <button id="run">テストを実行</button>
 <pre id="result" role="status">待機中</pre>
 <div id="frames"></div>
@@ -15,7 +15,9 @@ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const assert=(condition,message)=>{if(!condition)throw new Error(message);};
 async function until(check,message){for(let i=0;i<100;i++){if(check())return;await pause(15);}throw new Error('Timed out: '+message);}
 const previewParams=new URLSearchParams(location.search);
-const lineIds=['tokaido','sanyo','kyushu','nishikyushu','tohoku','hokkaido','yamagata','akita','joetsu','hokuriku'];
+const shinkansenIds=['tokaido','sanyo','kyushu','nishikyushu','tohoku','hokkaido','yamagata','akita','joetsu','hokuriku'];
+const seibuIds=['ikebukuro','chichibu','yurakucho','toshima','sayama','shinjuku','haijima','kokubunji','seibuen','tamako','yamaguchi','tamagawa'].map(id=>'seibu-'+id);
+const lineIds=[...shinkansenIds,...seibuIds];
 let completed=0;
 function pass(message){completed++;output.textContent+='\n✓ '+message;}
 document.getElementById('run').onclick=async()=>{
@@ -38,7 +40,7 @@ document.getElementById('run').onclick=async()=>{
     const state=()=>JSON.parse(localStorage.getItem(storageKey)||'{}');
     const settings=()=>{click('#gear');};
     const option=(name,value)=>click(`[data-k="${name}"] [data-v="${value}"]`);
-    const openFromHome=id=>{if(lineIds.includes(id)){click('.tile[data-id="stations"]');click(`.line-card[data-id="${id}"]`);}else click(`.tile[data-id="${id}"]`);};
+    const openFromHome=id=>{if(lineIds.includes(id)){click(`.tile[data-id="${seibuIds.includes(id)?'seibu':'stations'}"]`);assert(doc.querySelectorAll('.line-card').length===(seibuIds.includes(id)?12:10),'Route list for '+id);click(`.line-card[data-id="${id}"]`);}else click(`.tile[data-id="${id}"]`);};
     const beginSheet=id=>{click('#startBtn');openFromHome(id);};
     const toTitle=()=>{if(isPage('done'))click('#done .back');if(isPage('sheet'))click('#sheet .back');if(isPage('routes'))click('#routes .back');if(isPage('home'))click('#home .back');};
     const stroke=(d,variant='forward')=>{
@@ -66,7 +68,7 @@ document.getElementById('run').onclick=async()=>{
       if(mode==='double'){for(const ch of 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん')seed.counts['hira:'+ch]=1;seed.counts['hira:い']=0;}
       localStorage.setItem(storageKey,JSON.stringify(seed));doc=await load(+(previewParams.get('width')||400));
       if(mode==='award'||mode==='double'){beginSheet('nishikyushu');await finishViaCell('いさはや');}
-      else if(mode==='routes'){click('#startBtn');click('.tile[data-id="stations"]');}
+      else if(mode==='routes'||mode==='seibu'){click('#startBtn');click(`.tile[data-id="${mode==='seibu'?'seibu':'stations'}"]`);}
       else if(mode==='names'||mode==='retired'||mode==='nishikyushu')beginSheet(mode);
       else click('#startBtn');
       return;

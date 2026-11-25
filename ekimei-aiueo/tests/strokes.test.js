@@ -7,13 +7,15 @@ const html=fs.readFileSync(path.join(root,'ekimei.html'),'utf8');
 const js=html.match(/<script>([\s\S]*?)<\/script>/)[1];
 new Function(js);
 const core=js.slice(js.indexOf('/* DATA */'),js.indexOf('/* APP:'));
-const {STROKES,SHEETS,TH,TITLES,strokeSamples,judge,normalizeState,recordCompletion,count,level,aidLevel,sheetLevel,albumProgress,albumAchievements,TRAIN_HISTORY,STATION_LINES,localDay}=new Function(core+'\nreturn {STROKES,SHEETS,TH,TITLES,strokeSamples,judge,normalizeState,recordCompletion,count,level,aidLevel,sheetLevel,albumProgress,albumAchievements,TRAIN_HISTORY,STATION_LINES,localDay};')();
+const {STROKES,SHEETS,TH,TITLES,strokeSamples,judge,normalizeState,recordCompletion,count,level,aidLevel,sheetLevel,albumProgress,albumAchievements,TRAIN_HISTORY,STATION_LINES,SEIBU_LINES,localDay}=new Function(core+'\nreturn {STROKES,SHEETS,TH,TITLES,strokeSamples,judge,normalizeState,recordCompletion,count,level,aidLevel,sheetLevel,albumProgress,albumAchievements,TRAIN_HISTORY,STATION_LINES,SEIBU_LINES,localDay};')();
 let checks=0;
 const check=(name,run)=>{try{run();checks++;}catch(e){e.message=name+': '+e.message;throw e;}};
 
 check('embedded data matches original JSON',()=>assert.deepEqual(STROKES,JSON.parse(fs.readFileSync(path.join(root,'data/strokes-hiragana.json'),'utf8'))));
 check('83 original glyphs',()=>assert.equal(Object.keys(STROKES).length,83));
 check('original albums and 10 station routes remain distinct',()=>{assert.deepEqual(SHEETS.slice(0,3).map(s=>s.words.length),[19,17,46]);assert.equal(STATION_LINES.length,10);assert.equal(SHEETS.find(s=>s.id==='retired').words.length,5);});
+check('12 Seibu routes with 105 station boxes',()=>{assert.equal(SEIBU_LINES.length,12);assert.equal(SEIBU_LINES.reduce((n,l)=>n+l.stations.length,0),105);for(const l of SEIBU_LINES)assert.ok(SHEETS.some(s=>s.id===l.id&&s.station&&s.group==='seibu'));});
+check('sheet ids unique',()=>assert.equal(new Set(SHEETS.map(s=>s.id)).size,SHEETS.length));
 check('sheet words unique',()=>{for(const s of SHEETS)assert.equal(new Set(s.words).size,s.words.length);});
 for(const s of SHEETS)for(const word of s.words)for(const ch of word)check('glyph exists '+ch,()=>assert.ok(STROKES[ch]?.length));
 for(const [ch,number]of Object.entries({'と':2,'う':2,'き':4,'よ':2,'あ':3,'ん':1}))check('stroke count '+ch,()=>assert.equal(STROKES[ch].length,number));
@@ -70,7 +72,15 @@ check('all 10 station routes match driving game data',()=>{
   assert.deepEqual(STATION_LINES.map(l=>l.id),lines.map(l=>l.id));
   for(const line of lines){const actual=STATION_LINES.find(l=>l.id===line.id);assert.equal(actual.name,line.name);assert.equal(actual.color,line.c);assert.deepEqual(actual.stations,line.st.map(s=>s.slice(0,2)));}
 });
+check('all 12 Seibu routes match Seibu driving game data',()=>{
+  const driving=fs.readFileSync(path.join(root,'../seibu-untenshi/seibu.html'),'utf8');
+  const code=driving.match(/<script>([\s\S]*)<\/script>/)[1];
+  const BASE=new Function(code.slice(code.indexOf('/* ===== データ'),code.indexOf('const THRU'))+';return BASE;')();
+  assert.deepEqual(SEIBU_LINES.map(l=>l.id.replace(/^seibu-/,'')).sort(),Object.keys(BASE).sort());
+  for(const l of SEIBU_LINES){const b=BASE[l.id.replace(/^seibu-/,'')];assert.equal(l.name,b.name);assert.equal(l.color,b.c);assert.match(l.reading,/^[ぁ-ん]+せん$/);assert.deepEqual(l.stations,b.st.map(s=>s.slice(0,2)));}
+});
 check('embedded route and history data match editable JSON',()=>{
+  assert.deepEqual(SEIBU_LINES,JSON.parse(fs.readFileSync(path.join(root,'data/seibu-lines.json'))));
   assert.deepEqual(STATION_LINES,JSON.parse(fs.readFileSync(path.join(root,'data/station-lines.json'))));
   assert.deepEqual(TRAIN_HISTORY,JSON.parse(fs.readFileSync(path.join(root,'data/train-history.json'))));
 });
@@ -118,6 +128,7 @@ check('home card is before coming soon',()=>{const home=fs.readFileSync(path.joi
 check('no runtime stroke fetch or external application script',()=>{assert.ok(!/<script\s+[^>]*src=/.test(html));assert.ok(!/\bfetch\(/.test(js));});
 
 const artwork=JSON.parse(js.match(/^const ART=(\{[^\n]+\});$/m)[1]);
+check('embedded artwork matches seibu-cover',()=>assert.deepEqual(Buffer.from(artwork.seibu.split(',')[1],'base64'),fs.readFileSync(path.join(root,'../seibu-untenshi/assets/seibu-cover.webp'))));
 for(const [id,file]of Object.entries({names:'train-cover',tokaido:'station-cover',hira:'kana-cover',train:'train-character',retired:'retired-cover'}))check('embedded artwork matches '+file,()=>{
   const bytes=fs.readFileSync(path.join(root,'assets',file+'.webp'));
   assert.equal(bytes.toString('ascii',8,12),'WEBP');
